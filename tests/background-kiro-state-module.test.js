@@ -32,9 +32,13 @@ test('kiro state module exposes canonical nested kiroRuntime view', () => {
       register: {
         email: 'aws-user@example.com',
         fullName: 'Ada Lovelace',
-        userCode: 'ABCD-1234',
-        loginUrl: 'https://device.example.com/complete',
+        loginUrl: 'https://app.kiro.dev/signin',
         status: 'waiting_name',
+      },
+      webAuth: {
+        status: 'signin_started',
+        hasAccessToken: false,
+        hasSessionToken: false,
       },
       desktopAuth: {
         clientId: 'client-001',
@@ -54,7 +58,8 @@ test('kiro state module exposes canonical nested kiroRuntime view', () => {
   assert.equal(view.kiroRuntime.session.currentStage, 'desktop-authorize');
   assert.equal(view.kiroRuntime.session.registerTabId, 88);
   assert.equal(view.kiroRuntime.register.email, 'aws-user@example.com');
-  assert.equal(view.kiroRuntime.register.userCode, 'ABCD-1234');
+  assert.equal(view.kiroRuntime.register.loginUrl, 'https://app.kiro.dev/signin');
+  assert.equal(view.kiroRuntime.webAuth.status, 'signin_started');
   assert.equal(view.kiroRuntime.desktopAuth.clientId, 'client-001');
   assert.equal(view.kiroRuntime.desktopAuth.refreshToken, 'refresh-001');
   assert.equal(view.kiroRuntime.upload.status, 'ready_to_upload');

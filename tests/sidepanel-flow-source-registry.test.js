@@ -43,7 +43,7 @@ test('sidepanel html exposes flow selector and kiro source fields', () => {
     'id="row-kiro-rs-key"',
     'id="btn-test-kiro-rs"',
     'id="row-kiro-rs-test-status"',
-    'id="row-kiro-device-code"',
+    'id="row-kiro-web-status"',
     'id="row-kiro-login-url"',
     'id="row-kiro-upload-status"',
   ].forEach((snippet) => {
@@ -73,18 +73,23 @@ const window = {
 let latestState = { activeFlowId: 'openai' };
 let currentPlusModeEnabled = false;
 let currentPlusPaymentMethod = 'paypal';
+let currentPlusAccountAccessStrategy = 'oauth';
 let currentSignupMethod = 'email';
 let currentPhoneSignupReloginAfterBindEmailEnabled = false;
 let currentStepDefinitionFlowId = 'openai';
 const DEFAULT_ACTIVE_FLOW_ID = 'openai';
 const DEFAULT_SIGNUP_METHOD = 'email';
 const DEFAULT_PLUS_PAYMENT_METHOD = 'paypal';
+const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = 'oauth';
 let stepDefinitions = [{ id: 6, key: 'openai' }];
 let STEP_IDS = [6];
 let STEP_DEFAULT_STATUSES = { 6: 'pending' };
 let SKIPPABLE_STEPS = new Set([6]);
 function renderStepsList() {
   calls.push({ type: 'render', stepIds: [...STEP_IDS] });
+}
+function normalizePlusAccountAccessStrategy(value = '') {
+  return String(value || DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY).trim().toLowerCase() || DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY;
 }
 ${bundle}
 return {
@@ -110,6 +115,7 @@ return {
       activeFlowId: 'kiro',
       plusModeEnabled: false,
       plusPaymentMethod: 'paypal',
+      plusAccountAccessStrategy: 'oauth',
       signupMethod: 'email',
       phoneSignupReloginAfterBindEmailEnabled: false,
     },

@@ -785,6 +785,10 @@
         if (!cleanString(runtimeState.register?.email || currentState?.email)) {
           throw new Error('缺少已注册邮箱，请先完成注册页步骤。');
         }
+        if (cleanString(runtimeState.register?.status) !== 'completed'
+          || cleanString(runtimeState.webAuth?.status) !== 'signed_in') {
+          throw new Error('Kiro Web 登录态尚未建立，请先完成步骤 6。');
+        }
 
         const client = await desktopClientApi.registerDesktopClient({
           region: DEFAULT_REGION,

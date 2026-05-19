@@ -83,6 +83,13 @@ test('kiro desktop authorize runner uses a shared 3-minute page-load timeout bud
   assert.match(source, /finalizeDesktopAuthorizeCallback/);
 });
 
+test('kiro desktop authorization is gated by completed Kiro Web sign-in', () => {
+  const source = fs.readFileSync('background/kiro/desktop-authorize-runner.js', 'utf8');
+  assert.match(source, /runtimeState\.register\?\.status/);
+  assert.match(source, /runtimeState\.webAuth\?\.status/);
+  assert.match(source, /Kiro Web 登录态尚未建立/);
+});
+
 test('executeKiroCompleteDesktopAuthorize finishes from callback page without waiting for tracker replay', async () => {
   const api = loadDesktopAuthorizeRunnerApi();
   let currentState = createDesktopAuthorizeState();

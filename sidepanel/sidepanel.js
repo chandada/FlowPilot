@@ -179,8 +179,8 @@ const inputKiroRsKey = document.getElementById('input-kiro-rs-key');
 const btnTestKiroRs = document.getElementById('btn-test-kiro-rs');
 const rowKiroRsTestStatus = document.getElementById('row-kiro-rs-test-status');
 const displayKiroRsTestStatus = document.getElementById('display-kiro-rs-test-status');
-const rowKiroDeviceCode = document.getElementById('row-kiro-device-code');
-const displayKiroDeviceCode = document.getElementById('display-kiro-device-code');
+const rowKiroWebStatus = document.getElementById('row-kiro-web-status');
+const displayKiroWebStatus = document.getElementById('display-kiro-web-status');
 const rowKiroLoginUrl = document.getElementById('row-kiro-login-url');
 const displayKiroLoginUrl = document.getElementById('display-kiro-login-url');
 const rowKiroUploadStatus = document.getElementById('row-kiro-upload-status');
@@ -10215,19 +10215,20 @@ function applySettingsState(state) {
   if (typeof displayKiroRsTestStatus !== 'undefined' && displayKiroRsTestStatus) {
     displayKiroRsTestStatus.textContent = kiroRsConnectionTestStatusText;
   }
-  if (typeof displayKiroDeviceCode !== 'undefined' && displayKiroDeviceCode) {
-    const kiroDeviceCode = String(
-      state?.kiroRuntime?.register?.userCode
+  if (typeof displayKiroWebStatus !== 'undefined' && displayKiroWebStatus) {
+    const kiroWebStatus = String(
+      state?.kiroRuntime?.webAuth?.status
+      || state?.kiroRuntime?.register?.status
       || ''
     ).trim();
-    displayKiroDeviceCode.textContent = kiroDeviceCode || '未生成';
+    displayKiroWebStatus.textContent = kiroWebStatus || '未开始';
   }
   if (typeof displayKiroLoginUrl !== 'undefined' && displayKiroLoginUrl) {
     const kiroLoginUrl = String(
       state?.kiroRuntime?.register?.loginUrl
       || ''
     ).trim();
-    displayKiroLoginUrl.textContent = kiroLoginUrl || '未生成';
+    displayKiroLoginUrl.textContent = kiroLoginUrl || '未打开';
   }
   if (typeof displayKiroUploadStatus !== 'undefined' && displayKiroUploadStatus) {
     const kiroUploadStatus = String(

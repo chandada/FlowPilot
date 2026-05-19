@@ -255,6 +255,7 @@
         'content/kiro/register-page': {
           sourceId: 'kiro-register-page',
           commands: [
+            'kiro-open-register-page',
             'kiro-submit-email',
             'kiro-submit-name',
             'kiro-submit-verification-code',
@@ -362,7 +363,7 @@
     'kiro-runtime-status': {
       id: 'kiro-runtime-status',
       label: 'Kiro 运行态',
-      rowIds: ['row-kiro-device-code', 'row-kiro-login-url', 'row-kiro-upload-status'],
+      rowIds: ['row-kiro-web-status', 'row-kiro-login-url', 'row-kiro-upload-status'],
     },
   });
 

@@ -143,7 +143,13 @@
       || normalizedHost.includes(`.${normalizedFamily}.`);
   }
 
-  function isKiroAuthHost(hostname = '') {
+  function isKiroWebHost(hostname = '') {
+    const normalized = normalizeHostname(hostname);
+    return normalized === 'app.kiro.dev'
+      || normalized === 'kiro.dev';
+  }
+
+  function isKiroAwsAuthHost(hostname = '') {
     const normalized = normalizeHostname(hostname);
     return normalized === 'view.awsapps.com'
       || normalized === 'login.awsapps.com'
@@ -151,6 +157,10 @@
       || matchesNamedHostFamily(normalized, 'profile.aws')
       || normalized === 'amazonaws.com'
       || normalized.endsWith('.amazonaws.com');
+  }
+
+  function isKiroRegisterHost(hostname = '') {
+    return isKiroWebHost(hostname) || isKiroAwsAuthHost(hostname);
   }
 
   function getRuntimeSourceDefinitions() {
@@ -327,8 +337,9 @@
         case 'gopay-flow':
           return /gopay|gojek/i.test(candidate.hostname);
         case 'kiro-register-page':
+          return isKiroRegisterHost(candidate.hostname);
         case 'kiro-desktop-authorize':
-          return isKiroAuthHost(candidate.hostname);
+          return isKiroAwsAuthHost(candidate.hostname);
         default:
           return false;
       }
@@ -351,7 +362,7 @@
       if (normalizedHostname === 'www.icloud.com' || normalizedHostname === 'www.icloud.com.cn') return 'icloud-mail';
       if (normalizedUrl.includes('duckduckgo.com/email/settings/autofill')) return 'duck-mail';
       if (normalizedUrl.includes('2925.com')) return 'mail-2925';
-      if (isKiroAuthHost(normalizedHostname)) return 'kiro-register-page';
+      if (isKiroRegisterHost(normalizedHostname)) return 'kiro-register-page';
       if (isSignupEntryHost(normalizedHostname)) return 'chatgpt';
       return 'unknown-source';
     }

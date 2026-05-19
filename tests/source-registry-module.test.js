@@ -70,8 +70,8 @@ test('shared source registry exposes canonical Kiro sources and drivers', () => 
   );
   assert.equal(
     registry.detectSourceFromLocation({
-      url: 'https://view.awsapps.com/start',
-      hostname: 'view.awsapps.com',
+      url: 'https://app.kiro.dev/signin',
+      hostname: 'app.kiro.dev',
     }),
     'kiro-register-page'
   );
@@ -94,8 +94,16 @@ test('shared source registry exposes canonical Kiro sources and drivers', () => 
   assert.equal(
     registry.matchesSourceUrlFamily(
       'kiro-register-page',
+      'https://app.kiro.dev/signin',
+      'https://app.kiro.dev/signin'
+    ),
+    true
+  );
+  assert.equal(
+    registry.matchesSourceUrlFamily(
+      'kiro-register-page',
       'https://signin.aws/register',
-      'https://view.awsapps.com/start'
+      'https://app.kiro.dev/signin'
     ),
     true
   );

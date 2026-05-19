@@ -58,6 +58,13 @@
     return Number.isInteger(numeric) ? numeric : fallback;
   }
 
+  function normalizeBoolean(value, fallback = false) {
+    if (value === true || value === false) {
+      return value;
+    }
+    return fallback;
+  }
+
   function buildDefaultRuntimeState() {
     return {
       session: {
@@ -74,17 +81,15 @@
         email: '',
         fullName: '',
         verificationRequestedAt: 0,
-        entryClientId: '',
-        entryClientSecret: '',
-        entryDeviceCode: '',
-        userCode: '',
         loginUrl: '',
-        verificationUri: '',
-        verificationUriComplete: '',
-        entryExpiresAt: 0,
-        entryIntervalSeconds: 0,
         status: '',
         completedAt: 0,
+      },
+      webAuth: {
+        status: '',
+        completedAt: 0,
+        hasAccessToken: false,
+        hasSessionToken: false,
       },
       desktopAuth: {
         region: DEFAULT_REGION,
@@ -133,17 +138,15 @@
         email: normalizeString(merged.register?.email),
         fullName: normalizeString(merged.register?.fullName),
         verificationRequestedAt: Math.max(0, normalizeInteger(merged.register?.verificationRequestedAt)),
-        entryClientId: normalizeString(merged.register?.entryClientId),
-        entryClientSecret: normalizeString(merged.register?.entryClientSecret),
-        entryDeviceCode: normalizeString(merged.register?.entryDeviceCode),
-        userCode: normalizeString(merged.register?.userCode),
         loginUrl: normalizeString(merged.register?.loginUrl),
-        verificationUri: normalizeString(merged.register?.verificationUri),
-        verificationUriComplete: normalizeString(merged.register?.verificationUriComplete),
-        entryExpiresAt: Math.max(0, normalizeInteger(merged.register?.entryExpiresAt)),
-        entryIntervalSeconds: Math.max(0, normalizeInteger(merged.register?.entryIntervalSeconds)),
         status: normalizeString(merged.register?.status),
         completedAt: Math.max(0, normalizeInteger(merged.register?.completedAt)),
+      },
+      webAuth: {
+        status: normalizeString(merged.webAuth?.status),
+        completedAt: Math.max(0, normalizeInteger(merged.webAuth?.completedAt)),
+        hasAccessToken: normalizeBoolean(merged.webAuth?.hasAccessToken),
+        hasSessionToken: normalizeBoolean(merged.webAuth?.hasSessionToken),
       },
       desktopAuth: {
         region: normalizeString(merged.desktopAuth?.region, DEFAULT_REGION),

@@ -3,6 +3,7 @@ console.log('[MultiPage:kiro-register-page] Content script loaded on', location.
 const KIRO_REGISTER_PAGE_LISTENER_SENTINEL = 'data-multipage-kiro-register-page-listener';
 const DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS = globalThis.MultiPageKiroTimeouts?.DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS || (3 * 60 * 1000);
 const KIRO_CONTINUE_TEXT_PATTERN = /continue|继续/i;
+const KIRO_BUILDER_ID_TEXT_PATTERN = /aws\s*builder\s*id|builder\s*id/i;
 const KIRO_CONFIRM_CONTINUE_TEXT_PATTERN = /confirm and continue|确认并继续/i;
 const KIRO_ALLOW_ACCESS_TEXT_PATTERN = /allow access|允许访问/i;
 const KIRO_SUCCESS_TEXT_PATTERN = /authorization successful|you may now close this window|you are now signed in|授权成功|可以关闭此窗口|已登录/i;
@@ -174,6 +175,39 @@ function findPasswordContinueButton(passwordInput = null) {
   });
 }
 
+function isKiroWebHost(hostname = '') {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  return normalized === 'app.kiro.dev'
+    || normalized === 'kiro.dev';
+}
+
+function parseCurrentUrl() {
+  try {
+    return new URL(location.href);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function findBuilderIdButton() {
+  return findActionButton({
+    textPattern: KIRO_BUILDER_ID_TEXT_PATTERN,
+  });
+}
+
+function isKiroWebSignedInPage(pageText = '') {
+  const parsedUrl = parseCurrentUrl();
+  const pathname = String(parsedUrl?.pathname || '').replace(/\/+$/, '') || '/';
+  const authStatus = String(parsedUrl?.searchParams?.get('auth_status') || '').trim().toLowerCase();
+  if (authStatus === 'success') {
+    return true;
+  }
+  if (pathname !== '/signin') {
+    return true;
+  }
+  return /signed\s*in|authorization\s*successful|登录成功|已登录|授权成功/i.test(pageText);
+}
+
 function getAuthorizationActionKind(text = '') {
   if (KIRO_CONFIRM_CONTINUE_TEXT_PATTERN.test(text)) {
     return 'confirm_continue';
@@ -262,6 +296,24 @@ function detectKiroRegisterPageState() {
   const fatalState = detectKiroFatalPageState(pageText, currentUrl, document.title || '');
   if (fatalState) {
     return fatalState;
+  }
+
+  if (isKiroWebHost(location.hostname || '')) {
+    const builderIdButton = findBuilderIdButton();
+    if (builderIdButton) {
+      return {
+        state: 'kiro_signin_page',
+        url: currentUrl,
+        actionButton: builderIdButton,
+        actionText: getElementActionText(builderIdButton),
+      };
+    }
+    if (isKiroWebSignedInPage(pageText)) {
+      return {
+        state: 'kiro_web_signed_in',
+        url: currentUrl,
+      };
+    }
   }
 
   const passwordInputs = findVisiblePasswordInputs();
@@ -398,7 +450,7 @@ async function waitForKiroRegisterStateChange(payload = {}) {
 async function waitForKiroAuthorizationAdvance(previousState = {}, options = {}) {
   return waitForKiroState(
     (detected) => {
-      if (detected.state === 'success_page') {
+      if (detected.state === 'success_page' || detected.state === 'kiro_web_signed_in') {
         return true;
       }
       if (detected.state !== 'authorization_page') {
@@ -419,6 +471,24 @@ async function waitForKiroAuthorizationAdvance(previousState = {}, options = {})
       timeoutMessage: options.timeoutMessage || `等待 Kiro 授权页进入下一步超时：${location.href}`,
     }
   );
+}
+
+async function selectKiroBuilderId() {
+  const readyState = await ensureKiroRegisterPageState({
+    targetStates: ['kiro_signin_page'],
+    timeoutMs: DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS,
+    retryDelayMs: 250,
+  });
+  if (!readyState.actionButton) {
+    throw new Error('Kiro 官方登录页未找到 Builder ID 登录按钮。');
+  }
+  simulateClick(readyState.actionButton);
+  return {
+    submitted: true,
+    state: 'builder_id_selected',
+    url: location.href,
+    actionText: readyState.actionText || '',
+  };
 }
 
 async function submitKiroEmail(payload = {}) {
@@ -534,7 +604,7 @@ async function submitKiroPassword(payload = {}) {
 
 async function confirmKiroRegisterConsent(payload = {}) {
   let currentState = await ensureKiroRegisterPageState({
-    targetStates: ['authorization_page', 'success_page'],
+    targetStates: ['authorization_page', 'success_page', 'kiro_web_signed_in'],
     timeoutMs: payload?.timeoutMs || DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS,
     retryDelayMs: payload?.retryDelayMs || 250,
   });
@@ -558,7 +628,7 @@ async function confirmKiroRegisterConsent(payload = {}) {
     });
   }
 
-  if (currentState.state !== 'success_page') {
+  if (currentState.state !== 'success_page' && currentState.state !== 'kiro_web_signed_in') {
     throw new Error('Kiro 授权页未完成确认访问流程。');
   }
 
@@ -578,6 +648,9 @@ async function handleKiroRegisterCommand(message) {
       return waitForKiroRegisterStateChange(message.payload || {});
     case 'EXECUTE_NODE': {
       const nodeId = String(message.nodeId || message.payload?.nodeId || '').trim();
+      if (nodeId === 'kiro-open-register-page') {
+        return selectKiroBuilderId();
+      }
       if (nodeId === 'kiro-submit-email') {
         return submitKiroEmail(message.payload || {});
       }

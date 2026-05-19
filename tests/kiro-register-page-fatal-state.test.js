@@ -77,3 +77,16 @@ test('kiro register content does not misclassify the normal name page as a proxy
 
   assert.equal(fatal, null);
 });
+
+test('kiro register content treats Kiro web success callback as signed in', () => {
+  const harness = createHarness({
+    href: 'https://app.kiro.dev/signin?auth_status=success&redirect_from=KiroIDE',
+    hostname: 'app.kiro.dev',
+    title: 'Kiro',
+    bodyText: 'Signed in',
+  });
+
+  const detected = harness.detectKiroRegisterPageState();
+
+  assert.equal(detected.state, 'kiro_web_signed_in');
+});

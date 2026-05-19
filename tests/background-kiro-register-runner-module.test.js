@@ -10,52 +10,18 @@ function loadRegisterRunnerApi() {
   return globalScope.MultiPageBackgroundKiroRegisterRunner;
 }
 
-test('kiro register runner module exposes a factory and device login bootstrap helper', () => {
+test('kiro register runner module exposes a factory and Kiro official sign-in entry', () => {
   const api = loadRegisterRunnerApi();
   assert.equal(typeof api?.createKiroRegisterRunner, 'function');
-  assert.equal(typeof api?.startBuilderIdDeviceLogin, 'function');
+  assert.equal(api?.KIRO_SIGNIN_URL, 'https://app.kiro.dev/signin');
 });
 
-test('startBuilderIdDeviceLogin registers Builder ID client and returns login bootstrap payload', async () => {
-  const api = loadRegisterRunnerApi();
-  const requests = [];
-  const result = await api.startBuilderIdDeviceLogin('us-east-1', async (url, options = {}) => {
-    requests.push({ url, options });
-    if (url.endsWith('/client/register')) {
-      return {
-        ok: true,
-        text: async () => JSON.stringify({
-          clientId: 'client-001',
-          clientSecret: 'secret-001',
-        }),
-      };
-    }
-    if (url.endsWith('/device_authorization')) {
-      return {
-        ok: true,
-        text: async () => JSON.stringify({
-          deviceCode: 'device-code-001',
-          userCode: 'ABCD-1234',
-          verificationUri: 'https://view.awsapps.com/start',
-          verificationUriComplete: 'https://view.awsapps.com/start?user_code=ABCD-1234',
-          interval: 7,
-          expiresIn: 600,
-        }),
-      };
-    }
-    throw new Error(`Unexpected request: ${url}`);
-  });
-
-  assert.equal(requests.length, 2);
-  assert.equal(requests[0].url, 'https://oidc.us-east-1.amazonaws.com/client/register');
-  assert.equal(requests[1].url, 'https://oidc.us-east-1.amazonaws.com/device_authorization');
-  assert.equal(result.clientId, 'client-001');
-  assert.equal(result.clientSecret, 'secret-001');
-  assert.equal(result.deviceCode, 'device-code-001');
-  assert.equal(result.userCode, 'ABCD-1234');
-  assert.equal(result.verificationUriComplete, 'https://view.awsapps.com/start?user_code=ABCD-1234');
-  assert.equal(result.interval, 7);
-  assert.equal(result.region, 'us-east-1');
+test('kiro register runner removed the old AWS device authorization bootstrap', () => {
+  const source = fs.readFileSync('background/kiro/register-runner.js', 'utf8');
+  assert.doesNotMatch(source, /startBuilderIdDeviceLogin/);
+  assert.doesNotMatch(source, /device_authorization/);
+  assert.doesNotMatch(source, /verificationUriComplete/);
+  assert.match(source, /https:\/\/app\.kiro\.dev\/signin/);
 });
 
 test('kiro register runner uses a shared 3-minute page-load timeout budget', () => {
@@ -65,4 +31,11 @@ test('kiro register runner uses a shared 3-minute page-load timeout budget', () 
   assert.match(source, /resolveTimeoutBudget/);
   assert.match(source, /timeoutBudget\.getRemainingMs\(1000\)/);
   assert.match(source, /onRetryableError: buildKiroRetryRecovery\(tabId, \{\s*\.\.\.options,\s*timeoutBudget,/);
+});
+
+test('kiro register consent step treats Kiro Web signed-in page as completion', () => {
+  const source = fs.readFileSync('background/kiro/register-runner.js', 'utf8');
+  assert.match(source, /targetStates: \['authorization_page', 'kiro_web_signed_in'\]/);
+  assert.match(source, /landingResult\?\.state !== 'kiro_web_signed_in'/);
+  assert.doesNotMatch(source, /landingResult\?\.state !== 'success_page'/);
 });

@@ -146,6 +146,9 @@ const captured = [];
 const PLUS_PAYMENT_METHOD_PAYPAL = 'paypal';
 const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
 const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+const DEFAULT_ACTIVE_FLOW_ID = 'openai';
 const self = {
   MultiPageStepDefinitions: {
     getSteps(options) {
@@ -160,8 +163,10 @@ const self = {
 };
 ${extractFunction('isPlusModeState')}
 ${extractFunction('normalizePlusPaymentMethod')}
+${extractFunction('normalizePlusAccountAccessStrategy')}
 ${extractFunction('normalizeSignupMethod')}
 ${extractFunction('getSignupMethodForStepDefinitions')}
+${extractFunction('buildResolvedStepDefinitionState')}
 ${extractFunction('getStepDefinitionsForState')}
 return {
   getCaptured: () => captured.slice(),
@@ -180,6 +185,7 @@ return {
     activeFlowId: 'openai',
     plusModeEnabled: true,
     plusPaymentMethod: 'gopay',
+    plusAccountAccessStrategy: 'oauth',
     signupMethod: 'phone',
     phoneSignupReloginAfterBindEmailEnabled: false,
   }]);

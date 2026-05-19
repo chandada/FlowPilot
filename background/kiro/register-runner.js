@@ -6,16 +6,11 @@
   const DEFAULT_REGION = kiroStateApi?.DEFAULT_REGION || 'us-east-1';
   const DEFAULT_TARGET_ID = kiroStateApi?.DEFAULT_TARGET_ID || 'kiro-rs';
   const DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS = kiroTimeoutApi?.DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS || (3 * 60 * 1000);
-  const DEVICE_LOGIN_START_URL = 'https://view.awsapps.com/start';
-  const DEFAULT_SCOPES = Object.freeze([
-    'codewhisperer:completions',
-    'codewhisperer:analysis',
-    'codewhisperer:conversations',
-    'codewhisperer:transformations',
-    'codewhisperer:taskassist',
-  ]);
+  const KIRO_SIGNIN_URL = 'https://app.kiro.dev/signin';
   const KIRO_REGISTER_PAGE_SOURCE_ID = 'kiro-register-page';
   const KIRO_STEP1_COOKIE_CLEAR_DOMAINS = Object.freeze([
+    'kiro.dev',
+    'app.kiro.dev',
     'awsapps.com',
     'view.awsapps.com',
     'login.awsapps.com',
@@ -26,6 +21,8 @@
     'profile.aws.amazon.com',
   ]);
   const KIRO_STEP1_COOKIE_CLEAR_ORIGINS = Object.freeze([
+    'https://app.kiro.dev',
+    'https://kiro.dev',
     'https://view.awsapps.com',
     'https://login.awsapps.com',
     'https://oidc.us-east-1.amazonaws.com',
@@ -110,10 +107,6 @@
     return String(value ?? '').trim();
   }
 
-  function normalizeRegion(value = '', fallback = DEFAULT_REGION) {
-    return cleanString(value) || fallback;
-  }
-
   function normalizePositiveInteger(value, fallback) {
     const numeric = Math.floor(Number(value));
     if (Number.isInteger(numeric) && numeric > 0) {
@@ -152,10 +145,6 @@
     );
   }
 
-  function buildOidcBaseUrl(region = DEFAULT_REGION) {
-    return `https://oidc.${normalizeRegion(region)}.amazonaws.com`;
-  }
-
   function readKiroRuntime(state = {}) {
     if (typeof kiroStateApi?.ensureRuntimeState === 'function') {
       return kiroStateApi.ensureRuntimeState(state);
@@ -176,17 +165,6 @@
 
   function getErrorMessage(error) {
     return error instanceof Error ? error.message : String(error ?? '未知错误');
-  }
-
-  async function readResponse(response) {
-    const text = await response.text();
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch (_error) {
-      json = null;
-    }
-    return { text, json };
   }
 
   function normalizeKiroCookieDomain(domain = '') {
@@ -260,6 +238,58 @@
     return cookies;
   }
 
+  function shouldReadKiroWebCookie(cookie) {
+    const domain = normalizeKiroCookieDomain(cookie?.domain);
+    return domain === 'kiro.dev'
+      || domain === 'app.kiro.dev'
+      || domain.endsWith('.app.kiro.dev');
+  }
+
+  async function collectKiroWebCookies(chromeApi) {
+    if (!chromeApi?.cookies?.getAll) {
+      return [];
+    }
+
+    const stores = chromeApi.cookies.getAllCookieStores
+      ? await chromeApi.cookies.getAllCookieStores()
+      : [{ id: undefined }];
+    const cookies = [];
+    const seen = new Set();
+
+    for (const store of stores) {
+      const storeId = store?.id;
+      const batch = await chromeApi.cookies.getAll(storeId ? { storeId } : {});
+      for (const cookie of batch || []) {
+        if (!shouldReadKiroWebCookie(cookie)) {
+          continue;
+        }
+        const key = [
+          cookie.storeId || storeId || '',
+          cookie.domain || '',
+          cookie.path || '',
+          cookie.name || '',
+          cookie.partitionKey ? JSON.stringify(cookie.partitionKey) : '',
+        ].join('|');
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        cookies.push(cookie);
+      }
+    }
+
+    return cookies;
+  }
+
+  async function captureKiroWebAuthSummary() {
+    const cookies = await collectKiroWebCookies(chrome);
+    const names = new Set(cookies.map((cookie) => cleanString(cookie?.name).toLowerCase()).filter(Boolean));
+    return {
+      hasAccessToken: names.has('accesstoken') || names.has('access_token'),
+      hasSessionToken: names.has('sessiontoken') || names.has('session_token'),
+    };
+  }
+
   async function removeKiroStep1Cookie(chromeApi, cookie) {
     const details = {
       url: buildKiroStep1CookieRemovalUrl(cookie),
@@ -285,75 +315,6 @@
     }
   }
 
-  async function startBuilderIdDeviceLogin(region, fetchImpl) {
-    const normalizedRegion = normalizeRegion(region);
-    const oidcBaseUrl = buildOidcBaseUrl(normalizedRegion);
-    const registerResponse = await fetchImpl(`${oidcBaseUrl}/client/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        clientName: 'Codex Registration Extension',
-        clientType: 'public',
-        scopes: DEFAULT_SCOPES,
-        grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
-        issuerUrl: DEVICE_LOGIN_START_URL,
-      }),
-    });
-    const registerBody = await readResponse(registerResponse);
-    if (!registerResponse.ok) {
-      throw new Error(`Builder ID 客户端注册失败：${cleanString(registerBody.text || registerResponse.statusText) || registerResponse.status}`);
-    }
-
-    const clientId = cleanString(registerBody.json?.clientId);
-    const clientSecret = String(registerBody.json?.clientSecret || '');
-    if (!clientId || !clientSecret) {
-      throw new Error('Builder ID 客户端注册响应缺少凭据。');
-    }
-
-    const authorizationResponse = await fetchImpl(`${oidcBaseUrl}/device_authorization`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        clientId,
-        clientSecret,
-        startUrl: DEVICE_LOGIN_START_URL,
-      }),
-    });
-    const authorizationBody = await readResponse(authorizationResponse);
-    if (!authorizationResponse.ok) {
-      throw new Error(`Builder ID 设备授权失败：${cleanString(authorizationBody.text || authorizationResponse.statusText) || authorizationResponse.status}`);
-    }
-
-    const deviceCode = String(authorizationBody.json?.deviceCode || '');
-    const userCode = cleanString(authorizationBody.json?.userCode);
-    const verificationUri = cleanString(authorizationBody.json?.verificationUri);
-    const verificationUriComplete = cleanString(
-      authorizationBody.json?.verificationUriComplete || verificationUri
-    );
-    const interval = normalizePositiveInteger(authorizationBody.json?.interval, 5);
-    const expiresIn = normalizePositiveInteger(authorizationBody.json?.expiresIn, 600);
-    if (!deviceCode || !userCode || !verificationUriComplete) {
-      throw new Error('Builder ID 设备授权响应缺少必要字段。');
-    }
-
-    return {
-      clientId,
-      clientSecret,
-      deviceCode,
-      expiresAt: Date.now() + expiresIn * 1000,
-      expiresIn,
-      interval,
-      region: normalizedRegion,
-      userCode,
-      verificationUri,
-      verificationUriComplete,
-    };
-  }
-
   function createKiroRegisterRunner(deps = {}) {
     const {
       addLog = async () => {},
@@ -362,7 +323,6 @@
       ensureContentScriptReadyOnTab = null,
       ensureIcloudMailSession = null,
       ensureMail2925MailboxSession = null,
-      fetchImpl = typeof fetch === 'function' ? fetch.bind(globalThis) : null,
       generatePassword = null,
       generateRandomName = null,
       getMailConfig = null,
@@ -398,9 +358,6 @@
 
     if (typeof completeNodeFromBackground !== 'function') {
       throw new Error('Kiro register runner requires completeNodeFromBackground.');
-    }
-    if (typeof fetchImpl !== 'function') {
-      throw new Error('Kiro register runner requires fetch support.');
     }
 
     async function log(message, level = 'info', nodeId = '') {
@@ -883,23 +840,50 @@
       const currentState = await getExecutionState(state);
       try {
         await clearKiroCookiesBeforeStep1();
-        const auth = await startBuilderIdDeviceLogin(DEFAULT_REGION, fetchImpl);
-        const loginUrl = cleanString(auth.verificationUriComplete || auth.verificationUri);
-        const tabId = loginUrl ? await reuseOrCreateTab(KIRO_REGISTER_PAGE_SOURCE_ID, loginUrl) : null;
+        const loginUrl = KIRO_SIGNIN_URL;
+        const tabId = await reuseOrCreateTab(KIRO_REGISTER_PAGE_SOURCE_ID, loginUrl);
         if (!Number.isInteger(tabId)) {
           throw new Error('无法打开 Kiro 注册页，请重试步骤 1。');
         }
         await registerTab(KIRO_REGISTER_PAGE_SOURCE_ID, tabId);
         await activateTab(tabId);
 
-        const landingResult = await ensureKiroPageState(tabId, {
+        let landingResult = await ensureKiroPageState(tabId, {
           step: 1,
-          targetStates: ['email_entry'],
+          targetStates: ['kiro_signin_page', 'email_entry'],
           stableMs: 2500,
           initialDelayMs: 300,
           injectLogMessage: '步骤 1：Kiro 注册页内容脚本未就绪，正在等待页面恢复...',
-          readyLogMessage: '步骤 1：正在等待 Kiro 注册页邮箱输入框加载完成...',
+          readyLogMessage: '步骤 1：正在等待 Kiro 官方登录页加载完成...',
         });
+
+        if (landingResult?.state === 'kiro_signin_page') {
+          await log('步骤 1：正在选择 AWS Builder ID 登录方式...', 'info', nodeId);
+          const selectResult = await sendToContentScriptResilient(KIRO_REGISTER_PAGE_SOURCE_ID, {
+            type: 'EXECUTE_NODE',
+            nodeId: 'kiro-open-register-page',
+            step: 1,
+            source: 'background',
+            payload: {},
+          }, {
+            timeoutMs: 30000,
+            retryDelayMs: 700,
+            onRetryableError: buildKiroRetryRecovery(tabId, {}),
+            logMessage: '步骤 1：正在点击 Kiro 官方登录页的 Builder ID...',
+          });
+          if (selectResult?.error) {
+            throw new Error(selectResult.error);
+          }
+          landingResult = await ensureKiroPageState(tabId, {
+            step: 1,
+            targetStates: ['email_entry'],
+            stableMs: 2500,
+            initialDelayMs: 300,
+            injectLogMessage: '步骤 1：选择 Builder ID 后页面跳转中，正在等待 Kiro 注册页恢复...',
+            readyLogMessage: '步骤 1：正在等待 Builder ID 邮箱输入框加载完成...',
+            timeoutMessage: '选择 Builder ID 后未进入邮箱页，请检查当前 Kiro 登录页或代理状态。',
+          });
+        }
 
         const nextPatch = {
           session: {
@@ -915,17 +899,15 @@
             email: '',
             fullName: '',
             verificationRequestedAt: 0,
-            entryClientId: auth.clientId,
-            entryClientSecret: auth.clientSecret,
-            entryDeviceCode: auth.deviceCode,
-            userCode: auth.userCode,
             loginUrl,
-            verificationUri: auth.verificationUri,
-            verificationUriComplete: loginUrl,
-            entryExpiresAt: auth.expiresAt,
-            entryIntervalSeconds: auth.interval,
             status: 'waiting_email',
             completedAt: 0,
+          },
+          webAuth: {
+            status: 'signin_started',
+            completedAt: 0,
+            hasAccessToken: false,
+            hasSessionToken: false,
           },
           desktopAuth: {
             region: DEFAULT_REGION,
@@ -957,7 +939,7 @@
         };
 
         const payload = await applyRuntimeState(currentState, nextPatch);
-        await log(`Kiro 注册页已就绪，请在下一步中获取邮箱并继续。当前授权码：${auth.userCode}`, 'ok', nodeId);
+        await log('Kiro 注册页已就绪，已进入 Builder ID 邮箱页，请在下一步中获取邮箱并继续。', 'ok', nodeId);
         await completeNodeFromBackground(nodeId, payload);
       } catch (error) {
         const message = getErrorMessage(error);
@@ -1315,7 +1297,7 @@
         });
         let landingResult = await ensureKiroPageState(tabId, {
           step: 6,
-          targetStates: ['authorization_page', 'success_page'],
+          targetStates: ['authorization_page', 'kiro_web_signed_in'],
           stableMs: 1500,
           initialDelayMs: 150,
           injectLogMessage: '步骤 6：Kiro 授权确认页内容脚本未就绪，正在等待页面恢复...',
@@ -1323,7 +1305,7 @@
           timeoutMessage: '未进入 Kiro 授权确认页，请检查当前页面状态。',
         });
 
-        if (landingResult?.state !== 'success_page') {
+        if (landingResult?.state !== 'kiro_web_signed_in') {
           await log('步骤 6：正在确认访问并完成 Kiro 注册授权...', 'info', nodeId);
           const submitResult = await sendToContentScriptResilient(KIRO_REGISTER_PAGE_SOURCE_ID, {
             type: 'EXECUTE_NODE',
@@ -1342,12 +1324,18 @@
           if (submitResult?.error) {
             throw new Error(submitResult.error);
           }
-          landingResult = {
-            state: String(submitResult?.state || ''),
-            url: String(submitResult?.url || ''),
-          };
+          landingResult = await ensureKiroPageState(tabId, {
+            step: 6,
+            targetStates: ['kiro_web_signed_in'],
+            stableMs: 2000,
+            initialDelayMs: 300,
+            injectLogMessage: '步骤 6：授权确认后页面跳转中，正在等待 Kiro Web 登录态恢复...',
+            readyLogMessage: '步骤 6：授权确认已提交，正在等待回到 Kiro Web...',
+            timeoutMessage: '授权确认后未回到 Kiro Web 登录完成页，请检查当前页面或代理状态。',
+          });
         }
 
+        const webAuthSummary = await captureKiroWebAuthSummary();
         const payload = await applyRuntimeState(currentState, {
           session: {
             currentStage: 'desktop-authorize',
@@ -1359,12 +1347,18 @@
             status: 'completed',
             completedAt: Date.now(),
           },
+          webAuth: {
+            status: 'signed_in',
+            completedAt: Date.now(),
+            hasAccessToken: Boolean(webAuthSummary.hasAccessToken),
+            hasSessionToken: Boolean(webAuthSummary.hasSessionToken),
+          },
           upload: {
             status: 'waiting_desktop_authorize',
             error: '',
           },
         });
-        await log('步骤 6：注册页授权已完成，Builder ID 浏览器会话已建立。', 'ok', nodeId);
+        await log('步骤 6：注册页授权已完成，Kiro Web 登录态已建立。', 'ok', nodeId);
         await completeNodeFromBackground(nodeId, payload);
       } catch (error) {
         const message = getErrorMessage(error);
@@ -1380,12 +1374,11 @@
       executeKiroSubmitName,
       executeKiroSubmitPassword,
       executeKiroSubmitVerificationCode,
-      startBuilderIdDeviceLogin,
     };
   }
 
   return {
     createKiroRegisterRunner,
-    startBuilderIdDeviceLogin,
+    KIRO_SIGNIN_URL,
   };
 });
