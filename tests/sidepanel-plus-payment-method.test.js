@@ -151,14 +151,6 @@ test('sidepanel Plus UI hides PayPal account selector while GoPay is selected', 
     extractFunction('normalizePlusAccountAccessStrategy'),
     extractFunction('getSelectedPlusPaymentMethod'),
     extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
     extractFunction('updatePlusModeUI'),
   ].join('\n');
 
@@ -168,8 +160,6 @@ let currentPlusPaymentMethod = 'paypal';
 let currentPlusAccountAccessStrategy = 'oauth';
 const inputPlusModeEnabled = { checked: true };
 const selectPlusPaymentMethod = { value: 'gopay', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
@@ -195,14 +185,6 @@ test('sidepanel Plus UI separates PayPal account mode from PayPal no-card bindin
     extractFunction('normalizePlusAccountAccessStrategy'),
     extractFunction('getSelectedPlusPaymentMethod'),
     extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
     extractFunction('updatePlusModeUI'),
   ].join('\n');
 
@@ -212,8 +194,6 @@ let currentPlusPaymentMethod = 'paypal-hosted';
 let currentPlusAccountAccessStrategy = 'oauth';
 const inputPlusModeEnabled = { checked: true };
 const selectPlusPaymentMethod = { value: 'paypal-hosted', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
@@ -256,14 +236,6 @@ test('sidepanel Plus UI supports no-payment mode without payment-specific rows',
     extractFunction('normalizePlusAccountAccessStrategy'),
     extractFunction('getSelectedPlusPaymentMethod'),
     extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
     extractFunction('updatePlusModeUI'),
   ].join('\n');
 
@@ -273,8 +245,6 @@ let currentPlusPaymentMethod = 'none';
 let currentPlusAccountAccessStrategy = 'sub2api_codex_session';
 const inputPlusModeEnabled = { checked: true };
 const selectPlusPaymentMethod = { value: 'none', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
 const PLUS_PAYMENT_METHOD_NONE = 'none';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
@@ -286,7 +256,7 @@ const rowHostedCheckoutVerificationUrl = { style: { display: '' } };
 const rowHostedCheckoutPhone = { style: { display: '' } };
 const rowPlusHostedCheckoutOauthDelay = { style: { display: '' } };
 const rowGoPayPhone = { style: { display: '' } };
-const rowGpcHelperApi = { style: { display: '' } };
+const rowGpcCardKey = { style: { display: '' } };
 ${bundle}
 return {
   updatePlusModeUI,
@@ -297,7 +267,7 @@ return {
     rowHostedCheckoutPhone,
     rowPlusHostedCheckoutOauthDelay,
     rowGoPayPhone,
-    rowGpcHelperApi,
+    rowGpcCardKey,
   },
 };
 `)();
@@ -316,14 +286,6 @@ test('sidepanel Plus UI can hide Plus controls when the shared flow capability r
     extractFunction('normalizePlusAccountAccessStrategy'),
     extractFunction('getSelectedPlusPaymentMethod'),
     extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
     extractFunction('updatePlusModeUI'),
   ].join('\n');
 
@@ -349,8 +311,6 @@ const rowPlusMode = { style: { display: '' } };
 const selectPlusPaymentMethod = { value: 'paypal', style: { display: '' } };
 const rowPlusPaymentMethod = { style: { display: '' } };
 const rowPayPalAccount = { style: { display: '' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
@@ -373,7 +333,7 @@ return {
   assert.equal(api.selectPlusPaymentMethod.style.display, 'none');
 });
 
-test('sidepanel step definitions keep GPC helper mode distinct', () => {
+test('sidepanel step definitions keep GPC payment mode distinct', () => {
   const bundle = [
     extractFunction('normalizeSignupMethod'),
     extractFunction('normalizePlusPaymentMethod'),
@@ -436,25 +396,15 @@ test('sidepanel Plus UI shows GPC fields and purchase button only for GPC', () =
     extractFunction('normalizePlusAccountAccessStrategy'),
     extractFunction('getSelectedPlusPaymentMethod'),
     extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
     extractFunction('updatePlusModeUI'),
   ].join('\n');
 
   const api = new Function(`
-let latestState = { plusPaymentMethod: 'gpc-helper', gopayHelperAutoModeEnabled: true };
+let latestState = { plusPaymentMethod: 'gpc-helper' };
 let currentPlusPaymentMethod = 'paypal';
 let currentPlusAccountAccessStrategy = 'oauth';
 const inputPlusModeEnabled = { checked: true };
 const selectPlusPaymentMethod = { value: 'gpc-helper', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
@@ -463,18 +413,7 @@ const plusPaymentMethodCaption = { textContent: '' };
 const btnGpcCardKeyPurchase = { style: { display: 'none' } };
 const rowPayPalAccount = { style: { display: '' } };
 const rowPlusPaymentMethod = { style: { display: 'none' } };
-const rowGpcHelperApi = { style: { display: 'none' } };
-const rowGpcHelperCardKey = { style: { display: 'none' } };
-const rowGpcHelperPhoneMode = { style: { display: 'none' } };
-const selectGpcHelperPhoneMode = { value: 'manual' };
-const rowGpcHelperCountryCode = { style: { display: 'none' } };
-const rowGpcHelperPhone = { style: { display: 'none' } };
-const rowGpcHelperOtpChannel = { style: { display: 'none' } };
-const selectGpcHelperOtpChannel = { value: 'whatsapp' };
-const rowGpcHelperLocalSmsEnabled = { style: { display: 'none' } };
-const inputGpcHelperLocalSmsEnabled = { checked: false };
-const rowGpcHelperLocalSmsUrl = { style: { display: 'none' } };
-const rowGpcHelperPin = { style: { display: 'none' } };
+const rowGpcCardKey = { style: { display: 'none' } };
 const rowGoPayCountryCode = { style: { display: 'none' } };
 const rowGoPayPhone = { style: { display: 'none' } };
 const rowGoPayOtp = { style: { display: 'none' } };
@@ -483,13 +422,10 @@ ${bundle}
 return {
   updatePlusModeUI,
   selectPlusPaymentMethod,
-  selectGpcHelperPhoneMode,
-  selectGpcHelperOtpChannel,
-  inputGpcHelperLocalSmsEnabled,
   btnGpcCardKeyPurchase,
   rowPayPalAccount,
   plusPaymentMethodCaption,
-  rows: { rowGpcHelperApi, rowGpcHelperCardKey, rowGpcHelperPhoneMode, rowGpcHelperCountryCode, rowGpcHelperPhone, rowGpcHelperOtpChannel, rowGpcHelperLocalSmsEnabled, rowGpcHelperLocalSmsUrl, rowGpcHelperPin },
+  rows: { rowGpcCardKey },
 };
 `)();
 
@@ -497,374 +433,61 @@ return {
 
   assert.equal(api.rowPayPalAccount.style.display, 'none');
   assert.equal(api.btnGpcCardKeyPurchase.style.display, '');
-  assert.equal(api.rows.rowGpcHelperApi.style.display, '');
-  assert.equal(api.rows.rowGpcHelperCardKey.style.display, '');
-  assert.equal(api.rows.rowGpcHelperPhoneMode.style.display, '');
-  assert.equal(api.rows.rowGpcHelperPhone.style.display, '');
-  assert.equal(api.rows.rowGpcHelperOtpChannel.style.display, '');
-  assert.equal(api.rows.rowGpcHelperLocalSmsEnabled.style.display, '');
-  assert.equal(api.rows.rowGpcHelperLocalSmsUrl.style.display, 'none');
-  assert.match(api.plusPaymentMethodCaption.textContent, /GPC/);
-
-  api.inputGpcHelperLocalSmsEnabled.checked = true;
-  api.updatePlusModeUI();
-  assert.equal(api.selectGpcHelperOtpChannel.value, 'whatsapp');
-  assert.equal(api.rows.rowGpcHelperLocalSmsUrl.style.display, '');
-
-  api.selectGpcHelperOtpChannel.value = 'sms';
-  api.updatePlusModeUI();
-  assert.equal(api.inputGpcHelperLocalSmsEnabled.checked, true);
-  assert.equal(api.rows.rowGpcHelperLocalSmsEnabled.style.display, '');
-  assert.equal(api.rows.rowGpcHelperLocalSmsUrl.style.display, '');
-
-  api.selectGpcHelperPhoneMode.value = 'auto';
-  api.updatePlusModeUI();
-  assert.equal(api.rows.rowGpcHelperPhoneMode.style.display, '');
-  assert.equal(api.rows.rowGpcHelperPhone.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperOtpChannel.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperLocalSmsEnabled.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperLocalSmsUrl.style.display, 'none');
-  assert.match(api.plusPaymentMethodCaption.textContent, /自动/);
+  assert.equal(api.rows.rowGpcCardKey.style.display, '');
+  assert.equal(api.plusPaymentMethodCaption.textContent, 'GPC 网页充值链路');
 
   api.selectPlusPaymentMethod.value = 'gopay';
   api.updatePlusModeUI();
   assert.equal(api.btnGpcCardKeyPurchase.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperApi.style.display, 'none');
+  assert.equal(api.rows.rowGpcCardKey.style.display, 'none');
   assert.equal(api.rowPayPalAccount.style.display, 'none');
 });
 
-test('sidepanel keeps selected GPC auto mode when API Key has no auto permission', () => {
+test('sidepanel start check only requires a GPC card key', async () => {
   const bundle = [
-    extractFunction('normalizePlusPaymentMethod'),
-    extractFunction('normalizePlusAccountAccessStrategy'),
-    extractFunction('getSelectedPlusPaymentMethod'),
-    extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
-    extractFunction('updatePlusModeUI'),
+    extractFunction('normalizeGpcCardKeyInput'),
+    extractFunction('isGpcCardKeyInputFormat'),
+    extractFunction('setGpcCardKeyStatus'),
+    extractFunction('ensureGpcCardKeyReadyForStart'),
   ].join('\n');
 
   const api = new Function(`
-let latestState = { plusPaymentMethod: 'gpc-helper', gopayHelperPhoneMode: 'auto', gopayHelperAutoModeEnabled: false, gopayHelperBalancePayload: { auto_mode_enabled: false } };
-let currentPlusPaymentMethod = 'gpc-helper';
-let currentPlusAccountAccessStrategy = 'oauth';
-const inputPlusModeEnabled = { checked: true };
-const selectPlusPaymentMethod = { value: 'gpc-helper', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
-const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
-const plusPaymentMethodCaption = { textContent: '' };
-const btnGpcCardKeyPurchase = { style: { display: 'none' } };
-const rowPayPalAccount = { style: { display: '' } };
-const rowPlusPaymentMethod = { style: { display: 'none' } };
-const rowGpcHelperApi = { style: { display: 'none' } };
-const rowGpcHelperCardKey = { style: { display: 'none' } };
-const rowGpcHelperPhoneMode = { style: { display: 'none' } };
-const selectGpcHelperPhoneMode = { value: 'auto' };
-const rowGpcHelperCountryCode = { style: { display: 'none' } };
-const rowGpcHelperPhone = { style: { display: 'none' } };
-const rowGpcHelperOtpChannel = { style: { display: 'none' } };
-const selectGpcHelperOtpChannel = { value: 'whatsapp' };
-const rowGpcHelperLocalSmsEnabled = { style: { display: 'none' } };
-const inputGpcHelperLocalSmsEnabled = { checked: false };
-const rowGpcHelperLocalSmsUrl = { style: { display: 'none' } };
-const rowGpcHelperPin = { style: { display: 'none' } };
-${bundle}
-return { updatePlusModeUI, selectGpcHelperPhoneMode, plusPaymentMethodCaption, rows: { rowGpcHelperPhoneMode, rowGpcHelperPhone, rowGpcHelperOtpChannel, rowGpcHelperPin } };
-`)();
-
-  api.updatePlusModeUI();
-
-  assert.equal(api.rows.rowGpcHelperPhoneMode.style.display, '');
-  assert.equal(api.selectGpcHelperPhoneMode.value, 'auto');
-  assert.equal(api.rows.rowGpcHelperPhone.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperOtpChannel.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperPin.style.display, 'none');
-  assert.match(api.plusPaymentMethodCaption.textContent, /手动/);
-});
-
-test('sidepanel keeps selected GPC auto mode when persisted permission survives stop refresh', () => {
-  const bundle = [
-    extractFunction('normalizePlusPaymentMethod'),
-    extractFunction('normalizePlusAccountAccessStrategy'),
-    extractFunction('getSelectedPlusPaymentMethod'),
-    extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
-    extractFunction('updatePlusModeUI'),
-  ].join('\n');
-
-  const api = new Function(`
-let latestState = {
-  plusPaymentMethod: 'gpc-helper',
-  gopayHelperPhoneMode: 'auto',
-  gopayHelperAutoModeEnabled: true,
-  gopayHelperBalancePayload: { auto_mode_enabled: true },
-};
-let currentPlusPaymentMethod = 'gpc-helper';
-let currentPlusAccountAccessStrategy = 'oauth';
-const inputPlusModeEnabled = { checked: true };
-const selectPlusPaymentMethod = { value: 'gpc-helper', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
-const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
-const plusPaymentMethodCaption = { textContent: '' };
-const rowPayPalAccount = { style: { display: '' } };
-const rowPlusPaymentMethod = { style: { display: 'none' } };
-const rowGpcHelperApi = { style: { display: 'none' } };
-const rowGpcHelperCardKey = { style: { display: 'none' } };
-const rowGpcHelperPhoneMode = { style: { display: 'none' } };
-const selectGpcHelperPhoneMode = { value: 'auto' };
-const rowGpcHelperCountryCode = { style: { display: 'none' } };
-const rowGpcHelperPhone = { style: { display: 'none' } };
-const rowGpcHelperOtpChannel = { style: { display: 'none' } };
-const selectGpcHelperOtpChannel = { value: 'whatsapp' };
-const rowGpcHelperLocalSmsEnabled = { style: { display: 'none' } };
-const inputGpcHelperLocalSmsEnabled = { checked: false };
-const rowGpcHelperLocalSmsUrl = { style: { display: 'none' } };
-const rowGpcHelperPin = { style: { display: 'none' } };
-${bundle}
-function syncLatestState(nextState) { latestState = { ...latestState, ...nextState }; }
-return {
-  updatePlusModeUI,
-  selectGpcHelperPhoneMode,
-  getSelectedPhoneMode() { return selectGpcHelperPhoneMode.value; },
-  getPayloadPhoneMode() {
-    return (() => {
-      return normalizeGpcHelperPhoneModeValue(selectGpcHelperPhoneMode.value);
-    })();
-  },
-  applyDataUpdated(payload) {
-    syncLatestState(payload);
-    if (payload.gopayHelperPhoneMode !== undefined) {
-      selectGpcHelperPhoneMode.value = normalizeGpcHelperPhoneModeValue(payload.gopayHelperPhoneMode);
-    }
-    updatePlusModeUI();
-  },
-  rows: { rowGpcHelperPhoneMode, rowGpcHelperPhone, rowGpcHelperOtpChannel, rowGpcHelperPin },
-};
-`)();
-
-  api.updatePlusModeUI();
-  assert.equal(api.getSelectedPhoneMode(), 'auto');
-  assert.equal(api.getPayloadPhoneMode(), 'auto');
-  assert.equal(api.rows.rowGpcHelperPhoneMode.style.display, '');
-  assert.equal(api.rows.rowGpcHelperPhone.style.display, 'none');
-
-  api.applyDataUpdated({
-    autoRunning: false,
-    autoRunPhase: 'stopped',
-    gopayHelperAutoModeEnabled: false,
-  });
-
-  assert.equal(api.getSelectedPhoneMode(), 'auto');
-  assert.equal(api.getPayloadPhoneMode(), 'auto');
-  assert.equal(api.rows.rowGpcHelperPhone.style.display, 'none');
-});
-
-test('sidepanel keeps selected GPC auto mode before permission has been queried', () => {
-  const bundle = [
-    extractFunction('normalizePlusPaymentMethod'),
-    extractFunction('normalizePlusAccountAccessStrategy'),
-    extractFunction('getSelectedPlusPaymentMethod'),
-    extractFunction('getRequestedPlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneModeValue'),
-    extractFunction('getGpcHelperAutoModeEnabled'),
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('shouldPreserveSelectedGpcAutoMode'),
-    extractFunction('hasGpcAutoModePermissionField'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcOtpChannelValue'),
-    extractFunction('updatePlusModeUI'),
-  ].join('\n');
-
-  const api = new Function(`
-let latestState = { plusPaymentMethod: 'gpc-helper', gopayHelperPhoneMode: 'auto', gopayHelperAutoModeEnabled: false, gopayHelperBalancePayload: null };
-let currentPlusPaymentMethod = 'gpc-helper';
-let currentPlusAccountAccessStrategy = 'oauth';
-const inputPlusModeEnabled = { checked: true };
-const selectPlusPaymentMethod = { value: 'gpc-helper', style: { display: 'none' } };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
-const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
-const plusPaymentMethodCaption = { textContent: '' };
-const rowPayPalAccount = { style: { display: '' } };
-const rowPlusPaymentMethod = { style: { display: 'none' } };
-const rowGpcHelperApi = { style: { display: 'none' } };
-const rowGpcHelperCardKey = { style: { display: 'none' } };
-const rowGpcHelperPhoneMode = { style: { display: 'none' } };
-const selectGpcHelperPhoneMode = { value: 'auto' };
-const rowGpcHelperCountryCode = { style: { display: 'none' } };
-const rowGpcHelperPhone = { style: { display: 'none' } };
-const rowGpcHelperOtpChannel = { style: { display: 'none' } };
-const selectGpcHelperOtpChannel = { value: 'whatsapp' };
-const rowGpcHelperLocalSmsEnabled = { style: { display: 'none' } };
-const inputGpcHelperLocalSmsEnabled = { checked: false };
-const rowGpcHelperLocalSmsUrl = { style: { display: 'none' } };
-const rowGpcHelperPin = { style: { display: 'none' } };
-${bundle}
-return { updatePlusModeUI, selectGpcHelperPhoneMode, plusPaymentMethodCaption, rows: { rowGpcHelperPhoneMode, rowGpcHelperPhone, rowGpcHelperOtpChannel, rowGpcHelperPin } };
-`)();
-
-  api.updatePlusModeUI();
-
-  assert.equal(api.rows.rowGpcHelperPhoneMode.style.display, '');
-  assert.equal(api.selectGpcHelperPhoneMode.value, 'auto');
-  assert.equal(api.rows.rowGpcHelperPhone.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperOtpChannel.style.display, 'none');
-  assert.equal(api.rows.rowGpcHelperPin.style.display, 'none');
-  assert.match(api.plusPaymentMethodCaption.textContent, /自动/);
-});
-
-test('sidepanel start check keeps GPC auto mode when balance payload omits permission field', async () => {
-  const bundle = [
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcRemainingUsesValue'),
-    extractFunction('ensureGpcApiKeyReadyForStart'),
-  ].join('\n');
-
-  const api = new Function(`
-let latestState = { gopayHelperPhoneMode: 'auto' };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-const selectGpcHelperPhoneMode = { value: 'auto' };
+let latestState = { gpcCardKey: '' };
+const inputGpcCardKey = { value: '' };
+const displayGpcCardKeyStatus = { textContent: '', dataset: {} };
 const dialogs = [];
-let saveCalls = 0;
-let updateCalls = 0;
+const toasts = [];
+const window = { GoPayUtils: null };
 ${bundle}
 function isGpcHelperCheckoutSelected() { return true; }
-function getSelectedGpcHelperPhoneMode() { return selectGpcHelperPhoneMode.value; }
-async function refreshGpcBalanceForStart() {
-  return {
-    gopayHelperRemainingUses: 998,
-    gopayHelperApiKeyStatus: 'active',
-    gopayHelperAutoModeEnabled: false,
-    gopayHelperBalancePayload: {
-      status: 'active',
-      remaining_uses: 998,
-    },
-  };
-}
 async function showGpcStartBlockedDialog(message) {
   dialogs.push(message);
 }
-function syncLatestState(nextState) {
-  latestState = { ...latestState, ...nextState };
+function showToast(message, type, duration) {
+  toasts.push({ message, type, duration });
 }
-function updatePlusModeUI() {
-  updateCalls += 1;
-}
-async function saveSettings() {
-  saveCalls += 1;
-}
-function showToast() {}
 return {
-  ensureGpcApiKeyReadyForStart,
-  selectGpcHelperPhoneMode,
+  ensureGpcCardKeyReadyForStart,
+  inputGpcCardKey,
+  displayGpcCardKeyStatus,
+  setLatestState(nextState) { latestState = { ...latestState, ...nextState }; },
   getDialogs: () => dialogs.slice(),
-  getSaveCalls: () => saveCalls,
-  getUpdateCalls: () => updateCalls,
-  getPersistedPhoneMode: () => latestState.gopayHelperPhoneMode,
+  getToasts: () => toasts.slice(),
 };
 `)();
 
-  const allowed = await api.ensureGpcApiKeyReadyForStart();
+  assert.equal(await api.ensureGpcCardKeyReadyForStart(), false);
+  assert.deepEqual(api.getDialogs(), ['请先填写 GPC 卡密。']);
 
-  assert.equal(allowed, true);
-  assert.equal(api.selectGpcHelperPhoneMode.value, 'auto');
-  assert.equal(api.getPersistedPhoneMode(), 'auto');
-  assert.equal(api.getSaveCalls(), 0);
-  assert.equal(api.getUpdateCalls(), 0);
-  assert.deepEqual(api.getDialogs(), []);
-});
+  api.inputGpcCardKey.value = ' card-key-1 ';
+  assert.equal(await api.ensureGpcCardKeyReadyForStart(), false);
+  assert.match(api.getDialogs()[1], /GPC/);
+  assert.equal(api.displayGpcCardKeyStatus.dataset.tone, 'error');
 
-test('sidepanel start check blocks unsupported GPC auto mode without rewriting selection', async () => {
-  const bundle = [
-    extractFunction('normalizeGpcAutoModePermissionValue'),
-    extractFunction('getGpcAutoModePermissionFromPayload'),
-    extractFunction('isGpcAutoModePermissionDenied'),
-    extractFunction('normalizeGpcRemainingUsesValue'),
-    extractFunction('ensureGpcApiKeyReadyForStart'),
-  ].join('\n');
-
-  const api = new Function(`
-let latestState = { gopayHelperPhoneMode: 'auto' };
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-const selectGpcHelperPhoneMode = { value: 'auto' };
-const dialogs = [];
-let saveCalls = 0;
-let updateCalls = 0;
-${bundle}
-function isGpcHelperCheckoutSelected() { return true; }
-function getSelectedGpcHelperPhoneMode() { return selectGpcHelperPhoneMode.value; }
-async function refreshGpcBalanceForStart() {
-  return {
-    gopayHelperRemainingUses: 998,
-    gopayHelperApiKeyStatus: 'active',
-    gopayHelperAutoModeEnabled: false,
-    gopayHelperBalancePayload: {
-      status: 'active',
-      remaining_uses: 998,
-      auto_mode_enabled: false,
-    },
-  };
-}
-async function showGpcStartBlockedDialog(message) {
-  dialogs.push(message);
-}
-function syncLatestState(nextState) {
-  latestState = { ...latestState, ...nextState };
-}
-function updatePlusModeUI() {
-  updateCalls += 1;
-}
-async function saveSettings() {
-  saveCalls += 1;
-}
-function showToast() {}
-return {
-  ensureGpcApiKeyReadyForStart,
-  selectGpcHelperPhoneMode,
-  getDialogs: () => dialogs.slice(),
-  getSaveCalls: () => saveCalls,
-  getUpdateCalls: () => updateCalls,
-  getPersistedPhoneMode: () => latestState.gopayHelperPhoneMode,
-};
-`)();
-
-  const allowed = await api.ensureGpcApiKeyReadyForStart();
-
-  assert.equal(allowed, false);
-  assert.equal(api.selectGpcHelperPhoneMode.value, 'auto');
-  assert.equal(api.getPersistedPhoneMode(), 'auto');
-  assert.equal(api.getSaveCalls(), 0);
-  assert.equal(api.getUpdateCalls(), 0);
-  assert.equal(api.getDialogs().length, 1);
+  api.inputGpcCardKey.value = ' gpc-6c9f1a32-45734795-914e6f00 ';
+  assert.equal(await api.ensureGpcCardKeyReadyForStart({ notify: true }), true);
+  assert.equal(api.inputGpcCardKey.value, 'GPC-6C9F1A32-45734795-914E6F00');
+  assert.deepEqual(api.getToasts(), [{ message: 'GPC 卡密已填写。', type: 'success', duration: 1800 }]);
 });
 
 test('sidepanel resolves pending GoPay manual confirmation from DATA_UPDATED state', async () => {
@@ -927,76 +550,4 @@ return { events, syncPlusManualConfirmationDialog };
   });
   assert.match(api.events[2].message, /GoPay/);
   assert.equal(api.events[2].tone, 'info');
-});
-
-test('sidepanel resolves pending GPC OTP with typed code', async () => {
-  const bundle = [
-    extractFunction('normalizeSignupMethod'),
-    extractFunction('normalizePlusAccountAccessStrategy'),
-    extractFunction('normalizePlusStrategyTargetId'),
-    extractFunction('getPlusAccountAccessStrategyContinuationLabel'),
-    extractFunction('resolvePlusManualContinuationActionLabelFromState'),
-    extractLastFunction('openPlusManualConfirmationDialog'),
-    extractLastFunction('syncPlusManualConfirmationDialog'),
-  ].join('\n');
-
-  const api = new Function(`
-const events = [];
-let latestState = {
-  plusManualConfirmationPending: true,
-  plusManualConfirmationRequestId: 'otp-request-1',
-  plusManualConfirmationStep: 7,
-  plusManualConfirmationMethod: 'gopay-otp',
-  plusManualConfirmationTitle: 'GPC OTP 验证',
-  plusManualConfirmationMessage: '',
-};
-let activePlusManualConfirmationRequestId = '';
-let plusManualConfirmationDialogInFlight = false;
-const DEFAULT_ACTIVE_FLOW_ID = 'openai';
-const SIGNUP_METHOD_EMAIL = 'email';
-const SIGNUP_METHOD_PHONE = 'phone';
-const DEFAULT_SIGNUP_METHOD = 'email';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
-const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
-const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = 'oauth';
-const sharedFormDialog = {
-  async open(options) {
-    events.push({ type: 'form', options });
-    return { otp: ' 12-34 56 ' };
-  },
-};
-function openActionModal(options) {
-  events.push({ type: 'modal', options });
-  return Promise.resolve('confirm');
-}
-function showToast(message, tone) {
-  events.push({ type: 'toast', message, tone });
-}
-const chrome = {
-  runtime: {
-    async sendMessage(message) {
-      events.push({ type: 'send', message });
-      latestState = { ...latestState, plusManualConfirmationPending: false };
-      return { ok: true };
-    },
-  },
-};
-${bundle}
-return { events, syncPlusManualConfirmationDialog };
-`)();
-
-  await api.syncPlusManualConfirmationDialog();
-
-  assert.equal(api.events[0].type, 'form');
-  assert.equal(api.events[0].options.message, '请在WhatsApp里面获取验证码（耐心等待三十秒左右）');
-  assert.equal(api.events[0].options.confirmLabel, '提交 OTP');
-  const sendEvent = api.events.find((event) => event.type === 'send');
-  assert.deepEqual(sendEvent.message.payload, {
-    step: 7,
-    requestId: 'otp-request-1',
-    confirmed: true,
-    otp: '123456',
-  });
-  assert.equal(api.events.some((event) => event.type === 'modal'), false);
 });

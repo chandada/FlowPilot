@@ -10,29 +10,10 @@
   const PLUS_PAYMENT_METHOD_PAYPAL = 'paypal';
   const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
   const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
-  const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
-  const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-  const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-  const GPC_TASK_POLL_INTERVAL_MS = 3000;
-  const GPC_TASK_STALE_STATUS_TIMEOUT_MS = 60000;
-  const GPC_REMOTE_STAGE_LABELS = {
-    auto_otp_wait: '等待自动 OTP',
-    checkout_order_start: '创建订单',
-    checkout_start: '创建订单',
-    completed: '充值完成',
-    gopay_validate_pin: '校验 PIN',
-    otp_ready: '等待 PIN',
-    otp_submitted_local: 'OTP 已提交',
-    payment_processing: '支付处理中',
-    pin_submitted_local: 'PIN 已提交',
-    sms_otp_wait: '等待短信 OTP',
-    whatsapp_otp_wait: '等待 WhatsApp OTP',
-  };
-  const GPC_WAITING_FOR_LABELS = {
-    auto_otp: '自动 OTP',
-    otp: 'OTP',
-    pin: 'PIN',
-  };
+  const GPC_PORTAL_URL = 'https://gpc.qlhazycoder.top/';
+  const GPC_PAGE_POLL_INTERVAL_MS = 3000;
+  const GPC_PAGE_DEFAULT_TIMEOUT_SECONDS = 900;
+  const GPC_PAGE_MAX_START_ATTEMPTS = 10;
   const PAYMENT_METHOD_CONFIGS = {
     [PLUS_PAYMENT_METHOD_PAYPAL]: {
       id: PLUS_PAYMENT_METHOD_PAYPAL,
@@ -108,14 +89,26 @@
       return PLUS_CHECKOUT_URL_PATTERN.test(String(url || ''));
     }
 
+    function isGpcPortalUrl(url = '') {
+      const text = String(url || '').trim();
+      if (!text) {
+        return false;
+      }
+      try {
+        const parsed = new URL(text);
+        return parsed.hostname === 'gpc.qlhazycoder.top';
+      } catch {
+        return /^https:\/\/gpc\.qlhazycoder\.top(?:\/|$)/i.test(text);
+      }
+    }
+
     function normalizeText(value = '') {
       return String(value || '').replace(/\s+/g, ' ').trim();
     }
 
     function isGpcHelperCheckout(state = {}) {
       return normalizePlusPaymentMethod(state?.plusPaymentMethod) === PLUS_PAYMENT_METHOD_GPC_HELPER
-        || (normalizeText(state?.plusCheckoutSource) === PLUS_PAYMENT_METHOD_GPC_HELPER
-          && Boolean(state?.gopayHelperTaskId || state?.gopayHelperReferenceId));
+        || normalizeText(state?.plusCheckoutSource) === PLUS_PAYMENT_METHOD_GPC_HELPER;
     }
 
     function compactCountryText(value = '') {
@@ -134,1025 +127,220 @@
       return normalized === PLUS_PAYMENT_METHOD_GOPAY ? PLUS_PAYMENT_METHOD_GOPAY : PLUS_PAYMENT_METHOD_PAYPAL;
     }
 
-    function normalizeGpcHelperPhoneMode(value = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcHelperPhoneMode) {
-        return rootScope.GoPayUtils.normalizeGpcHelperPhoneMode(value);
-      }
-      const normalized = String(value || '').trim().toLowerCase();
-      return normalized === GPC_HELPER_PHONE_MODE_AUTO || normalized === 'builtin'
-        ? GPC_HELPER_PHONE_MODE_AUTO
-        : GPC_HELPER_PHONE_MODE_MANUAL;
-    }
-
-    function formatGpcRemoteStageLabel(stage = '') {
-      const normalized = String(stage || '').trim().toLowerCase();
-      if (!normalized) {
-        return '';
-      }
-      return GPC_REMOTE_STAGE_LABELS[normalized] || normalized;
-    }
-
-    function formatGpcWaitingForLabel(waitingFor = '') {
-      const normalized = String(waitingFor || '').trim().toLowerCase();
-      if (!normalized) {
-        return '';
-      }
-      return GPC_WAITING_FOR_LABELS[normalized] || normalized.toUpperCase();
-    }
-
-    function formatGpcTaskStatusLog(task = {}) {
-      const statusText = String(task?.status_text || task?.statusText || '').trim();
-      const status = String(task?.status || '').trim();
-      const remoteStage = String(task?.remote_stage || task?.remoteStage || '').trim();
-      const stageText = formatGpcRemoteStageLabel(remoteStage);
-      const waitingForText = formatGpcWaitingForLabel(task?.api_waiting_for || task?.apiWaitingFor || '');
-      const mainText = stageText || statusText || status || '处理中';
-      const parts = [`步骤 7：GPC 任务状态：${mainText}`];
-      if (waitingForText && !mainText.includes(waitingForText)) {
-        parts.push(`，等待 ${waitingForText}`);
-      }
-      return parts.join('');
-    }
-
-    function getGpcHelperPhoneMode(state = {}, task = null) {
-      return normalizeGpcHelperPhoneMode(
-        task?.phone_mode
-        || task?.phoneMode
-        || state?.gopayHelperPhoneMode
-        || state?.phoneMode
-      );
-    }
-
     function getPaymentMethodConfig(method = PLUS_PAYMENT_METHOD_PAYPAL) {
       return PAYMENT_METHOD_CONFIGS[normalizePlusPaymentMethod(method)] || PAYMENT_METHOD_CONFIGS[PLUS_PAYMENT_METHOD_PAYPAL];
     }
 
-    function normalizeGpcHelperBaseUrl(apiUrl = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcHelperBaseUrl) {
-        return rootScope.GoPayUtils.normalizeGpcHelperBaseUrl(apiUrl);
-      }
-      let normalized = String(apiUrl || DEFAULT_GPC_HELPER_API_URL).trim().replace(/\/+$/g, '');
-      normalized = normalized.replace(/\/api\/checkout\/start$/i, '');
-      normalized = normalized.replace(/\/api\/gopay\/(?:otp|pin)$/i, '');
-      normalized = normalized.replace(/\/api\/gp\/tasks(?:\/[^/?#]+)?(?:\/(?:otp|pin|stop))?(?:\?.*)?$/i, '');
-      normalized = normalized.replace(/\/api\/gp\/balance(?:\?.*)?$/i, '');
-      normalized = normalized.replace(/\/api\/card\/balance(?:\?.*)?$/i, '');
-      normalized = normalized.replace(/\/api\/card\/redeem-api-key(?:\?.*)?$/i, '');
-      return normalized || DEFAULT_GPC_HELPER_API_URL;
+    function getGpcPageTimeoutMs(state = {}) {
+      const seconds = Math.max(1, Math.min(1800, Number(state?.gpcPageTimeoutSeconds) || GPC_PAGE_DEFAULT_TIMEOUT_SECONDS));
+      return seconds * 1000;
     }
 
-    async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000) {
-      const fetcher = typeof fetchImpl === 'function'
-        ? fetchImpl
-        : (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
-      if (typeof fetcher !== 'function') {
-        throw new Error('当前运行环境不支持 fetch，无法调用 GPC API。');
+    async function getAliveGpcPortalTabId(tabId) {
+      const normalizedTabId = Number(tabId) || 0;
+      if (!normalizedTabId) {
+        return null;
       }
-      const controller = typeof AbortController === 'function' ? new AbortController() : null;
-      const effectiveTimeoutMs = Math.max(1000, Number(timeoutMs) || 30000);
-      let didTimeout = false;
-      let timer = null;
-      const buildTimeoutError = () => new Error(`GPC API 请求超时（>${Math.round(effectiveTimeoutMs / 1000)} 秒）：${url}`);
-      const timeoutPromise = new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          didTimeout = true;
-          reject(buildTimeoutError());
-          if (controller) {
-            controller.abort();
-          }
-        }, effectiveTimeoutMs);
+      if (!chrome?.tabs?.get) {
+        return normalizedTabId;
+      }
+      const tab = await chrome.tabs.get(normalizedTabId).catch(() => null);
+      return tab && isGpcPortalUrl(tab.url || '') ? normalizedTabId : null;
+    }
+
+    async function getCurrentGpcPortalTabId() {
+      const queryTabs = typeof queryTabsInAutomationWindow === 'function'
+        ? queryTabsInAutomationWindow
+        : (chrome?.tabs?.query ? (queryInfo) => chrome.tabs.query(queryInfo) : null);
+      if (typeof queryTabs !== 'function') {
+        return null;
+      }
+      const activeTabs = await queryTabs({ active: true, currentWindow: true }).catch(() => []);
+      const activeGpcTab = (Array.isArray(activeTabs) ? activeTabs : [])
+        .find((tab) => Number.isInteger(tab?.id) && isGpcPortalUrl(tab.url || ''));
+      if (activeGpcTab) {
+        return activeGpcTab.id;
+      }
+      const tabs = await queryTabs({}).catch(() => []);
+      const gpcTab = (Array.isArray(tabs) ? tabs : [])
+        .find((tab) => Number.isInteger(tab?.id) && isGpcPortalUrl(tab.url || ''));
+      return gpcTab?.id || null;
+    }
+
+    async function getGpcPortalTabId(state = {}) {
+      const registeredTabId = typeof getTabId === 'function'
+        ? await Promise.resolve(getTabId(PLUS_CHECKOUT_SOURCE)).catch(() => null)
+        : null;
+      if (registeredTabId) {
+        const aliveRegisteredTabId = await getAliveGpcPortalTabId(registeredTabId);
+        if (aliveRegisteredTabId) {
+          return aliveRegisteredTabId;
+        }
+      }
+      const storedTabId = await getAliveGpcPortalTabId(Number(state.plusCheckoutTabId) || 0);
+      if (storedTabId) {
+        return storedTabId;
+      }
+      const currentTabId = await getCurrentGpcPortalTabId();
+      if (currentTabId) {
+        await addLog('步骤 7：检测到当前已在 GPC 页面，直接接管当前标签页。', 'info');
+        return currentTabId;
+      }
+      throw new Error('步骤 7：未找到 GPC 页面。请先执行步骤 6 打开并准备 GPC 页面。');
+    }
+
+    async function inspectGpcPortalPage(tabId) {
+      if (!chrome?.scripting?.executeScript) {
+        throw new Error('步骤 7：当前运行环境不支持脚本注入，无法读取 GPC 页面。');
+      }
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const textOf = (element) => String(element?.innerText || element?.textContent || element?.value || '').replace(/\s+/g, ' ').trim();
+          const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+          const startButton = buttons.find((button) => /开始\s*Plus\s*充值|任务进行中/.test(textOf(button)))
+            || buttons.find((button) => /开始|任务/.test(textOf(button)));
+          const bodyText = String(document.body?.innerText || document.documentElement?.innerText || '').replace(/\r/g, '');
+          const logNodes = Array.from(document.querySelectorAll('[class*="log"], [id*="log"], .design-log, .logs, pre, code'));
+          const logText = logNodes.map(textOf).filter(Boolean).join('\n') || bodyText;
+          const cardInputs = Array.from(document.querySelectorAll('input.card-key-seg, input[placeholder*="XXXXXXXX"], input[maxlength="8"]'));
+          const sessionTextarea = document.querySelector('textarea.design-session-input') || document.querySelector('textarea');
+          return {
+            url: location.href,
+            readyState: document.readyState,
+            bodyText,
+            logText,
+            hasSubscriptionDone: /订阅完成/.test(logText) || /订阅完成/.test(bodyText),
+            noTrial: /该账户没有试用资格|该账号没有试用资格|没有试用资格/.test(logText) || /该账户没有试用资格|该账号没有试用资格|没有试用资格/.test(bodyText),
+            startButtonText: textOf(startButton),
+            startButtonDisabled: Boolean(startButton?.disabled || startButton?.getAttribute?.('aria-disabled') === 'true'),
+            hasStartButton: Boolean(startButton),
+            cardKeyValue: cardInputs.map((input) => String(input.value || '')).join('-'),
+            sessionLength: String(sessionTextarea?.value || '').length,
+          };
+        },
       });
-      try {
-        const response = await Promise.race([
-          fetcher(url, { ...options, ...(controller ? { signal: controller.signal } : {}) }),
-          timeoutPromise,
-        ]);
-        const data = await Promise.race([
-          response.json().catch(() => ({})),
-          timeoutPromise,
-        ]);
-        return { response, data };
-      } catch (error) {
-        if (didTimeout || error?.name === 'AbortError') {
-          throw buildTimeoutError();
-        }
-        throw error;
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
+      return results?.[0]?.result || {};
     }
 
-    function buildGpcOtpPayload(input = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcOtpPayload) {
-        return rootScope.GoPayUtils.buildGpcOtpPayload(input);
+    async function clickGpcStartButton(tabId) {
+      if (!chrome?.scripting?.executeScript) {
+        throw new Error('步骤 7：当前运行环境不支持脚本注入，无法启动 GPC 页面流程。');
       }
-      const payload = {
-        reference_id: String(input.reference_id ?? input.referenceId ?? '').trim(),
-        otp: String(input.otp ?? input.code ?? '').trim().replace(/[^\d]/g, ''),
-      };
-      const gopayGuid = String(input.gopay_guid ?? input.gopayGuid ?? '').trim();
-      const redirectUrl = String(input.redirect_url ?? input.redirectUrl ?? '').trim();
-      const flowId = String(input.flow_id ?? input.flowId ?? '').trim();
-      if (flowId) payload.flow_id = flowId;
-      if (gopayGuid) payload.gopay_guid = gopayGuid;
-      if (redirectUrl) payload.redirect_url = redirectUrl;
-      return payload;
-    }
-
-    function buildGpcOtpRetryPayload(input = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcOtpRetryPayload) {
-        return rootScope.GoPayUtils.buildGpcOtpRetryPayload(input);
-      }
-      const basePayload = buildGpcOtpPayload(input);
-      return { ...basePayload, code: basePayload.otp };
-    }
-
-    function buildGpcPinPayload(input = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcPinPayload) {
-        return rootScope.GoPayUtils.buildGpcPinPayload(input);
-      }
-      const payload = {
-        reference_id: String(input.reference_id ?? input.referenceId ?? '').trim(),
-        challenge_id: String(input.challenge_id ?? input.challengeId ?? '').trim(),
-        gopay_guid: String(input.gopay_guid ?? input.gopayGuid ?? '').trim(),
-        pin: String(input.pin ?? '').trim().replace(/[^\d]/g, ''),
-      };
-      const redirectUrl = String(input.redirect_url ?? input.redirectUrl ?? '').trim();
-      const flowId = String(input.flow_id ?? input.flowId ?? '').trim();
-      if (flowId) payload.flow_id = flowId;
-      if (redirectUrl) payload.redirect_url = redirectUrl;
-      return payload;
-    }
-
-    function buildGpcPinRetryPayload(input = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcPinRetryPayload) {
-        return rootScope.GoPayUtils.buildGpcPinRetryPayload(input);
-      }
-      const basePayload = buildGpcPinPayload(input);
-      return { ...basePayload, challengeId: basePayload.challenge_id };
-    }
-
-    function getGpcResponseErrorDetail(payload = {}, status = 0) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.extractGpcResponseErrorDetail) {
-        return rootScope.GoPayUtils.extractGpcResponseErrorDetail(payload, status);
-      }
-      if (payload && typeof payload === 'object') {
-        return payload?.data?.detail || payload.detail || payload.message || payload.error || payload.error_description || payload.reason || `HTTP ${status || 0}`;
-      }
-      return `HTTP ${status || 0}`;
-    }
-
-    function unwrapGpcResponse(payload = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.unwrapGpcResponse) {
-        return rootScope.GoPayUtils.unwrapGpcResponse(payload);
-      }
-      if (payload && typeof payload === 'object' && !Array.isArray(payload)
-        && Object.prototype.hasOwnProperty.call(payload, 'data')
-        && (Object.prototype.hasOwnProperty.call(payload, 'code') || Object.prototype.hasOwnProperty.call(payload, 'message'))) {
-        return payload.data ?? {};
-      }
-      return payload;
-    }
-
-    function isGpcUnifiedResponseOk(payload = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.isGpcUnifiedResponseOk) {
-        return rootScope.GoPayUtils.isGpcUnifiedResponseOk(payload);
-      }
-      if (!payload || typeof payload !== 'object' || !Object.prototype.hasOwnProperty.call(payload, 'code')) {
-        return true;
-      }
-      const code = Number(payload.code);
-      return Number.isFinite(code) ? code >= 200 && code < 300 : String(payload.code || '').trim() === '200';
-    }
-
-    function buildGpcTaskQueryUrl(apiUrl = '', taskId = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcTaskQueryUrl) {
-        return rootScope.GoPayUtils.buildGpcTaskQueryUrl(apiUrl, taskId);
-      }
-      const baseUrl = normalizeGpcHelperBaseUrl(apiUrl);
-      return `${baseUrl}/api/gp/tasks/${encodeURIComponent(String(taskId || '').trim())}`;
-    }
-
-    function buildGpcTaskActionUrl(apiUrl = '', taskId = '', action = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcTaskActionUrl) {
-        return rootScope.GoPayUtils.buildGpcTaskActionUrl(apiUrl, taskId, action);
-      }
-      const baseUrl = normalizeGpcHelperBaseUrl(apiUrl);
-      const normalizedAction = String(action || '').trim().replace(/^\/+|\/+$/g, '');
-      return `${baseUrl}/api/gp/tasks/${encodeURIComponent(String(taskId || '').trim())}/${normalizedAction}`;
-    }
-
-    function buildGpcTaskOtpPayload(input = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcTaskOtpPayload) {
-        return rootScope.GoPayUtils.buildGpcTaskOtpPayload(input);
-      }
-      return {
-        otp: String(input.otp ?? input.code ?? '').trim().replace(/[^\d]/g, ''),
-      };
-    }
-
-    function buildGpcTaskPinPayload(input = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcTaskPinPayload) {
-        return rootScope.GoPayUtils.buildGpcTaskPinPayload(input);
-      }
-      return {
-        pin: String(input.pin ?? '').trim().replace(/[^\d]/g, ''),
-      };
-    }
-
-    function buildGpcApiKeyHeaders(apiKey = '', extraHeaders = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcApiKeyHeaders) {
-        return rootScope.GoPayUtils.buildGpcApiKeyHeaders(apiKey, extraHeaders);
-      }
-      const headers = {
-        ...(extraHeaders && typeof extraHeaders === 'object' ? extraHeaders : {}),
-      };
-      const normalizedApiKey = String(apiKey || '').trim();
-      if (normalizedApiKey) {
-        headers['X-API-Key'] = normalizedApiKey;
-      }
-      return headers;
-    }
-
-    function normalizeGpcTaskData(payload = {}) {
-      const data = unwrapGpcResponse(payload);
-      const task = data && typeof data === 'object' && !Array.isArray(data) ? { ...data } : {};
-      task.task_id = String(task.task_id || task.taskId || '').trim();
-      task.status = String(task.status || '').trim().toLowerCase();
-      task.status_text = String(task.status_text || task.statusText || '').trim();
-      task.phone_mode = normalizeGpcHelperPhoneMode(task.phone_mode || task.phoneMode || '');
-      task.remote_stage = String(task.remote_stage || task.remoteStage || '').trim().toLowerCase();
-      task.api_waiting_for = String(task.api_waiting_for || task.apiWaitingFor || '').trim().toLowerCase();
-      task.api_input_deadline_at = String(task.api_input_deadline_at || task.apiInputDeadlineAt || '').trim();
-      task.api_input_wait_seconds = Math.max(0, Number(task.api_input_wait_seconds ?? task.apiInputWaitSeconds) || 0);
-      task.last_input_error = String(task.last_input_error || task.lastInputError || '').trim();
-      task.otp_invalid_count = Math.max(0, Number(task.otp_invalid_count ?? task.otpInvalidCount) || 0);
-      task.failure_stage = String(task.failure_stage || task.failureStage || '').trim();
-      task.failure_detail = String(task.failure_detail || task.failureDetail || '').trim();
-      task.error_message = String(task.error_message || task.errorMessage || '').trim();
-      return task;
-    }
-
-    async function setGpcTaskState(taskData = {}) {
-      const task = normalizeGpcTaskData(taskData);
-      const updates = {
-        gopayHelperTaskId: task.task_id,
-        gopayHelperTaskStatus: task.status,
-        gopayHelperStatusText: task.status_text,
-        gopayHelperRemoteStage: task.remote_stage,
-        gopayHelperApiWaitingFor: task.api_waiting_for,
-        gopayHelperApiInputDeadlineAt: task.api_input_deadline_at,
-        gopayHelperApiInputWaitSeconds: task.api_input_wait_seconds,
-        gopayHelperLastInputError: task.last_input_error,
-        gopayHelperOtpInvalidCount: task.otp_invalid_count,
-        gopayHelperFailureStage: task.failure_stage,
-        gopayHelperFailureDetail: task.failure_detail,
-        gopayHelperTaskPayload: task && typeof task === 'object' && !Array.isArray(task) ? task : null,
-      };
-      await setState(updates);
-      if (typeof broadcastDataUpdate === 'function') {
-        broadcastDataUpdate(updates);
-      }
-      return task;
-    }
-
-    async function fetchGpcTaskStatus(apiUrl, taskId, apiKey) {
-      const requestUrl = buildGpcTaskQueryUrl(apiUrl, taskId);
-      const { response, data } = await fetchJsonWithTimeout(requestUrl, {
-        method: 'GET',
-        headers: buildGpcApiKeyHeaders(apiKey, { Accept: 'application/json' }),
-      }, 30000);
-      if (!response?.ok || !isGpcUnifiedResponseOk(data)) {
-        throw new Error(getGpcResponseErrorDetail(data, response?.status || 0));
-      }
-      return setGpcTaskState(data);
-    }
-
-    async function postGpcTaskAction(apiUrl, taskId, action, payload = {}, apiKey = '', timeoutMs = 30000) {
-      const requestUrl = buildGpcTaskActionUrl(apiUrl, taskId, action);
-      const { response, data } = await fetchJsonWithTimeout(requestUrl, {
-        method: 'POST',
-        headers: buildGpcApiKeyHeaders(apiKey, {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        }),
-        body: JSON.stringify(payload),
-      }, timeoutMs);
-      if (!response?.ok || !isGpcUnifiedResponseOk(data)) {
-        throw new Error(getGpcResponseErrorDetail(data, response?.status || 0));
-      }
-      return setGpcTaskState(data);
-    }
-
-    async function postGpcJsonWithFallback(apiUrl, endpointPath, primaryPayload, fallbackPayload, timeoutMs = 30000) {
-      const requestUrl = `${apiUrl}${endpointPath}`;
-      const send = (payload) => fetchJsonWithTimeout(requestUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }, timeoutMs);
-      const firstResponse = await send(primaryPayload);
-      if (firstResponse?.response?.ok || !fallbackPayload) {
-        return { ...firstResponse, retried: false, payload: primaryPayload };
-      }
-      const status = Number(firstResponse?.response?.status || 0);
-      if (status !== 400 && status !== 422) {
-        return { ...firstResponse, retried: false, payload: primaryPayload };
-      }
-      const firstDetail = getGpcResponseErrorDetail(firstResponse?.data, status);
-      await addLog(`步骤 7：GPC 接口返回 ${status}（${firstDetail}），使用兼容字段重试。`, 'warn');
-      const secondResponse = await send(fallbackPayload);
-      return {
-        ...secondResponse,
-        retried: true,
-        payload: fallbackPayload,
-        firstError: firstDetail,
-        firstStatus: status,
-      };
-    }
-
-    function getStateInternal() {
-      if (typeof getState === 'function') {
-        return getState();
-      }
-      return Promise.resolve({});
-    }
-
-    function normalizeLocalSmsHelperBaseUrl(value = '') {
-      const fallback = 'http://127.0.0.1:18767';
-      const rawValue = String(value || fallback).trim();
-      try {
-        const parsed = new URL(rawValue);
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-          return fallback;
-        }
-        const endpointPath = parsed.pathname.replace(/\/+$/g, '') || '/';
-        if (['/otp', '/latest-otp', '/health'].includes(endpointPath)) {
-          parsed.pathname = '';
-          parsed.search = '';
-          parsed.hash = '';
-        }
-        return parsed.toString().replace(/\/$/, '');
-      } catch {
-        return fallback;
-      }
-    }
-
-    function normalizeIncomingGpcSmsOtp(payload = {}) {
-      const candidates = [
-        payload?.otp,
-        payload?.code,
-        payload?.sms_code,
-        payload?.smsCode,
-        payload?.verification_code,
-        payload?.verificationCode,
-      ];
-      for (const candidate of candidates) {
-        const normalized = String(candidate || '').trim().replace(/[^\d]/g, '');
-        if (/^\d{4,8}$/.test(normalized)) {
-          return normalized;
-        }
-      }
-      const messageText = String(payload?.message_text || payload?.messageText || payload?.text || '').trim();
-      if (messageText) {
-        const match = messageText.match(/(?:OTP\s*[:：]?\s*|#)(\d{4,8})\b|\b(\d{6})\b/i);
-        if (match) {
-          return String(match[1] || match[2] || '').trim();
-        }
-      }
-      return '';
-    }
-
-    function normalizeGpcOtpChannel(value = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcOtpChannel) {
-        return rootScope.GoPayUtils.normalizeGpcOtpChannel(value);
-      }
-      return String(value || '').trim().toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
-    }
-
-    function normalizeEpochMilliseconds(value = 0) {
-      const rawValue = String(value ?? '').trim();
-      if (!rawValue) {
-        return 0;
-      }
-      const numeric = Number(rawValue);
-      if (Number.isFinite(numeric) && numeric > 0) {
-        return Math.floor(numeric < 100000000000 ? numeric * 1000 : numeric);
-      }
-      const parsed = Date.parse(rawValue);
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-
-    function normalizeLocalSmsHelperCountryCode(value = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGoPayCountryCode) {
-        return rootScope.GoPayUtils.normalizeGoPayCountryCode(value || '+86');
-      }
-      const digits = String(value || '+86').replace(/\D/g, '');
-      return digits ? `+${digits}` : '+86';
-    }
-
-    function normalizeLocalSmsHelperPhoneE164(phone = '', countryCode = '+86') {
-      const rawPhone = String(phone || '').trim();
-      if (!rawPhone) {
-        return '';
-      }
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      const normalizedCountryCode = normalizeLocalSmsHelperCountryCode(countryCode);
-      const normalizedPhone = rootScope.GoPayUtils?.normalizeGoPayPhone
-        ? rootScope.GoPayUtils.normalizeGoPayPhone(rawPhone)
-        : rawPhone.replace(/[^\d+]/g, '');
-      const phoneDigits = normalizedPhone.replace(/\D/g, '');
-      if (!phoneDigits) {
-        return '';
-      }
-      if (normalizedPhone.startsWith('+')) {
-        return `+${phoneDigits}`;
-      }
-      const countryDigits = normalizedCountryCode.replace(/\D/g, '') || '86';
-      let nationalNumber = phoneDigits;
-      if (countryDigits && nationalNumber.startsWith(countryDigits) && nationalNumber.length > countryDigits.length) {
-        nationalNumber = nationalNumber.slice(countryDigits.length);
-      }
-      return `+${countryDigits}${nationalNumber}`;
-    }
-
-    function buildLocalSmsHelperOtpUrl(state = {}, taskId = '', options = {}) {
-      const baseUrl = normalizeLocalSmsHelperBaseUrl(state?.gopayHelperLocalSmsHelperUrl);
-      const url = new URL(`${baseUrl}/latest-otp`);
-      const normalizedTaskId = String(taskId || '').trim();
-      const phoneNumber = normalizeLocalSmsHelperPhoneE164(
-        state?.gopayHelperPhoneNumber,
-        state?.gopayHelperCountryCode || '+86'
-      );
-      const afterOverrideMs = normalizeEpochMilliseconds(options?.afterMs || options?.after_ms || 0);
-      const orderCreatedAt = normalizeEpochMilliseconds(
-        state?.gopayHelperOrderCreatedAt
-          || state?.gopayHelperTaskPayload?.created_at
-          || state?.gopayHelperTaskPayload?.createdAt
-          || state?.gopayHelperStartPayload?.order_created_at
-          || state?.gopayHelperStartPayload?.orderCreatedAt
-          || state?.gopayHelperStartPayload?.created_at
-          || state?.gopayHelperStartPayload?.createdAt
-      );
-      if (normalizedTaskId) {
-        url.searchParams.set('task_id', normalizedTaskId);
-        url.searchParams.set('reference_id', normalizedTaskId);
-      }
-      if (phoneNumber) {
-        url.searchParams.set('phone', phoneNumber);
-      }
-      url.searchParams.set('consume', '1');
-      const effectiveAfterMs = Math.max(orderCreatedAt, afterOverrideMs);
-      if (effectiveAfterMs > 0) {
-        url.searchParams.set('after_ms', String(effectiveAfterMs));
-      }
-      return url.toString();
-    }
-
-    async function pollLocalSmsHelperOtp(state = {}, taskId = '', options = {}) {
-      const timeoutSeconds = Math.max(1, Math.min(300, Number(options?.timeoutSeconds ?? options?.timeout_seconds ?? state?.gopayHelperLocalSmsTimeoutSeconds) || 90));
-      const pollIntervalSeconds = Math.max(1, Math.min(30, Number(state?.gopayHelperLocalSmsPollIntervalSeconds) || 2));
-      const singleAttempt = Boolean(options?.singleAttempt || options?.single_attempt);
-      const requestTimeoutMs = Math.max(1000, Math.min(8000, Number(options?.requestTimeoutMs ?? options?.request_timeout_ms) || pollIntervalSeconds * 1000));
-      const deadline = Date.now() + timeoutSeconds * 1000;
-      const requestUrl = buildLocalSmsHelperOtpUrl(state, taskId, options);
-      let lastMessage = '';
-      while (Date.now() <= deadline) {
-        throwIfStopped();
-        try {
-          const { response, data } = await fetchJsonWithTimeout(requestUrl, {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-          }, requestTimeoutMs);
-          const otp = normalizeIncomingGpcSmsOtp(data || {});
-          if (response?.ok && otp) {
-            await setState({
-              gopayHelperResolvedOtp: otp,
-              gopayHelperSmsOtpPayload: data && typeof data === 'object' && !Array.isArray(data) ? data : null,
-            });
-            if (typeof broadcastDataUpdate === 'function') {
-              broadcastDataUpdate({ gopayHelperResolvedOtp: otp });
-            }
-            return otp;
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const textOf = (element) => String(element?.innerText || element?.textContent || element?.value || '').replace(/\s+/g, ' ').trim();
+          const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+          const button = buttons.find((candidate) => /开始\s*Plus\s*充值/.test(textOf(candidate)));
+          if (!button) {
+            return {
+              clicked: false,
+              reason: 'missing',
+              buttonText: textOf(button),
+            };
           }
-          lastMessage = String(data?.message || data?.status || '').trim();
-        } catch (error) {
-          lastMessage = error?.message || String(error || '未知错误');
-        }
-        if (singleAttempt) {
-          break;
-        }
-        await sleepWithStop(pollIntervalSeconds * 1000);
-      }
-      throw new Error(lastMessage || '本地 SMS Helper 等待 OTP 超时。');
-    }
-
-    function buildGpcTaskEndedError(task = {}, fallbackMessage = '') {
-      const detail = buildGpcTaskTerminalError(task) || fallbackMessage || 'GPC 任务已结束，请重新创建任务。';
-      return new Error(`GPC_TASK_ENDED::${detail}`);
-    }
-
-    function isGpcTaskInputDeadlineExpired(task = {}) {
-      const deadlineMs = normalizeEpochMilliseconds(task?.api_input_deadline_at || task?.apiInputDeadlineAt || '');
-      return deadlineMs > 0 && Date.now() > deadlineMs;
-    }
-
-    function buildGpcInputDeadlineError(task = {}, label = '输入') {
-      const stage = String(task?.remote_stage || '').trim();
-      const detail = `${label}提交已超时，请重新创建任务。`;
-      return new Error(`GPC_TASK_ENDED::${detail}${stage ? `（${stage}）` : ''}`);
-    }
-
-    function normalizeSixDigitOtp(value = '') {
-      const otp = String(value || '').trim().replace(/[^\d]/g, '');
-      return /^\d{6}$/.test(otp) ? otp : '';
-    }
-
-    function normalizeSixDigitPin(value = '') {
-      const pin = String(value || '').trim().replace(/[^\d]/g, '');
-      return /^\d{6}$/.test(pin) ? pin : '';
-    }
-
-    function isGpcOtpFormatConflict(error) {
-      return /OTP\s*必须是\s*6\s*位数字|OTP.*6.*digit|task_conflict/i.test(error?.message || String(error || ''));
-    }
-
-    async function requestGpcOtpInput({ title = '', message = '', taskId = '', lastInputError = '', inputDeadlineAt = '' }) {
-      const existingState = await getStateInternal();
-      const existingRequestId = String(existingState?.plusManualConfirmationRequestId || '').trim();
-      if (
-        existingState?.plusManualConfirmationPending
-        && existingRequestId
-        && String(existingState?.plusManualConfirmationMethod || '').trim().toLowerCase() === 'gopay-otp'
-        && String(existingState?.gopayHelperOtpReferenceId || '').trim() === String(taskId || '').trim()
-      ) {
-        return waitForGpcOtpInput(existingRequestId, { inputDeadlineAt });
-      }
-
-      const requestId = `otp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const payload = {
-        plusManualConfirmationPending: true,
-        plusManualConfirmationRequestId: requestId,
-        plusManualConfirmationStep: 7,
-        plusManualConfirmationMethod: 'gopay-otp',
-        plusManualConfirmationTitle: title || 'GPC OTP 验证',
-        plusManualConfirmationMessage: message || '请输入 OTP 验证码',
-        gopayHelperLastInputError: String(lastInputError || '').trim(),
-        gopayHelperApiInputDeadlineAt: String(inputDeadlineAt || '').trim(),
-        gopayHelperResolvedOtp: '',
-        gopayHelperOtpRequestId: requestId,
-        gopayHelperOtpReferenceId: taskId,
-      };
-      await setState(payload);
-      if (typeof broadcastDataUpdate === 'function') {
-        broadcastDataUpdate(payload);
-      }
-      return waitForGpcOtpInput(requestId, { inputDeadlineAt });
-    }
-
-    function waitForGpcOtpInput(requestId = '', options = {}) {
-      const deadlineMs = normalizeEpochMilliseconds(options?.inputDeadlineAt || options?.input_deadline_at || 0);
-      return new Promise((resolve, reject) => {
-        const checkInterval = setInterval(async () => {
-          try {
-            throwIfStopped();
-            if (deadlineMs > 0 && Date.now() > deadlineMs) {
-              clearInterval(checkInterval);
-              const clearPayload = {
-                plusManualConfirmationPending: false,
-                plusManualConfirmationRequestId: '',
-                plusManualConfirmationStep: 0,
-                plusManualConfirmationMethod: '',
-                plusManualConfirmationTitle: '',
-                plusManualConfirmationMessage: '',
-                gopayHelperResolvedOtp: '',
-                gopayHelperOtpRequestId: '',
-                gopayHelperOtpReferenceId: '',
-              };
-              await setState(clearPayload);
-              if (typeof broadcastDataUpdate === 'function') {
-                broadcastDataUpdate(clearPayload);
-              }
-              reject(new Error('OTP 输入超时'));
-              return;
-            }
-            const currentState = await getStateInternal();
-            if (!currentState?.plusManualConfirmationPending || currentState?.plusManualConfirmationRequestId !== requestId) {
-              clearInterval(checkInterval);
-              const resolvedOtp = String(currentState?.gopayHelperResolvedOtp || '').trim().replace(/[^\d]/g, '');
-              if (resolvedOtp) {
-                resolve(resolvedOtp);
-              } else {
-                reject(new Error('OTP 输入已取消'));
-              }
-            }
-          } catch (error) {
-            clearInterval(checkInterval);
-            reject(error);
+          if (button.disabled || button.getAttribute?.('aria-disabled') === 'true') {
+            return {
+              clicked: false,
+              reason: 'disabled',
+              buttonText: textOf(button),
+            };
           }
-        }, 500);
+          button.scrollIntoView?.({ block: 'center', inline: 'center' });
+          button.click?.();
+          return {
+            clicked: true,
+            buttonText: textOf(button),
+          };
+        },
       });
-    }
-
-    function isGpcTaskManualMode(task = {}, state = {}) {
-      return getGpcHelperPhoneMode(state, task) === GPC_HELPER_PHONE_MODE_MANUAL;
-    }
-
-    function isGpcTaskOtpWait(task = {}, state = {}) {
-      return isGpcTaskManualMode(task, state) && task?.api_waiting_for === 'otp';
-    }
-
-    function isGpcTaskPinWait(task = {}, state = {}) {
-      return isGpcTaskManualMode(task, state)
-        && (task?.api_waiting_for === 'pin' || task?.status === 'otp_ready');
-    }
-
-    function isGpcTaskTerminal(status = '') {
-      return ['completed', 'failed', 'expired', 'discarded'].includes(String(status || '').trim().toLowerCase());
-    }
-
-    function buildGpcTaskProgressSignature(task = {}) {
-      return [
-        task?.status,
-        task?.status_text,
-        task?.remote_stage,
-        task?.api_waiting_for,
-        task?.last_input_error,
-        task?.otp_invalid_count,
-        task?.failure_stage || task?.failureStage,
-        task?.failure_detail || task?.failureDetail,
-        task?.error_message || task?.errorMessage,
-      ].map((value) => String(value ?? '').trim()).join('|');
-    }
-
-    function shouldWatchGpcTaskProgress(task = {}, state = {}) {
-      if (!task || isGpcTaskTerminal(task.status)) {
-        return false;
-      }
-      if (isGpcTaskOtpWait(task, state) || isGpcTaskPinWait(task, state)) {
-        return false;
-      }
-      return true;
-    }
-
-    function getGpcTaskStaleStatusTimeoutMs(state = {}) {
-      const configuredSeconds = Number(state?.gopayHelperTaskStaleSeconds);
-      if (Number.isFinite(configuredSeconds) && configuredSeconds > 0) {
-        return Math.max(15000, Math.min(600000, Math.floor(configuredSeconds * 1000)));
-      }
-      return GPC_TASK_STALE_STATUS_TIMEOUT_MS;
-    }
-
-    function buildGpcTaskStaleStatusError(task = {}, staleTimeoutMs = GPC_TASK_STALE_STATUS_TIMEOUT_MS) {
-      const seconds = Math.max(1, Math.round(staleTimeoutMs / 1000));
-      const label = formatGpcRemoteStageLabel(task?.remote_stage)
-        || task?.status_text
-        || task?.status
-        || '未知状态';
-      return new Error(`GPC_TASK_ENDED::GPC 任务状态超过 ${seconds} 秒无进展（${label}），请重新创建任务。`);
-    }
-
-    function buildGpcTaskTerminalError(task = {}) {
-      const status = String(task?.status || '').trim().toLowerCase();
-      const remoteStage = String(task?.remote_stage || task?.remoteStage || '').trim();
-      const failureStage = String(task?.failure_stage || task?.failureStage || '').trim();
-      const detail = String(
-        task?.error_message
-        || task?.errorMessage
-        || task?.failure_detail
-        || task?.failureDetail
-        || task?.last_input_error
-        || task?.lastInputError
-        || task?.status_text
-        || task?.statusText
-        || task?.message
-        || task?.detail
-        || task?.data?.detail
-        || ''
-      ).trim();
-      if (detail) {
-        return failureStage && !detail.includes(failureStage)
-          ? `${detail}（${failureStage}）`
-          : detail;
-      }
-      if (/api_otp_timeout/i.test(remoteStage)) {
-        return 'GPC OTP 超时，请重新创建任务';
-      }
-      if (/api_pin_timeout/i.test(remoteStage)) {
-        return 'GPC PIN 超时，请重新创建任务';
-      }
-      if (failureStage) {
-        return `GPC 任务失败：${failureStage}`;
-      }
-      return `任务状态 ${status || '未知'}`;
-    }
-
-    async function stopGpcTaskBestEffort(apiUrl, taskId, apiKey, reason = '') {
-      if (!apiUrl || !taskId || !apiKey) {
-        return;
-      }
-      try {
-        const task = await postGpcTaskAction(apiUrl, taskId, 'stop', {}, apiKey, 15000);
-        const statusText = task?.status_text || task?.status || '已停止';
-        await addLog(`步骤 7：已请求停止 GPC 任务（${statusText}）。`, 'warn');
-      } catch (error) {
-        await addLog(`步骤 7：停止 GPC 任务失败${reason ? `（${reason}）` : ''}：${error?.message || String(error || '未知错误')}`, 'warn');
-      }
-    }
-
-    async function clearGpcTaskRuntimeState() {
-      const updates = {
-        plusManualConfirmationPending: false,
-        plusManualConfirmationRequestId: '',
-        plusManualConfirmationStep: 0,
-        plusManualConfirmationMethod: '',
-        plusManualConfirmationTitle: '',
-        plusManualConfirmationMessage: '',
-        gopayHelperTaskId: '',
-        gopayHelperTaskStatus: '',
-        gopayHelperStatusText: '',
-        gopayHelperRemoteStage: '',
-        gopayHelperApiWaitingFor: '',
-        gopayHelperApiInputDeadlineAt: '',
-        gopayHelperApiInputWaitSeconds: 0,
-        gopayHelperLastInputError: '',
-        gopayHelperOtpInvalidCount: 0,
-        gopayHelperFailureStage: '',
-        gopayHelperFailureDetail: '',
-        gopayHelperTaskPayload: null,
-        gopayHelperTaskProgressSignature: '',
-        gopayHelperTaskProgressAt: 0,
-        gopayHelperTaskProgressTaskId: '',
-        gopayHelperPinPayload: null,
-        gopayHelperResolvedOtp: '',
-        gopayHelperOtpRequestId: '',
-        gopayHelperOtpReferenceId: '',
-      };
-      await setState(updates);
-      if (typeof broadcastDataUpdate === 'function') {
-        broadcastDataUpdate(updates);
-      }
-    }
-
-    function isGpcTaskEndedError(error) {
-      return /^GPC_TASK_ENDED::/i.test(error?.message || String(error || ''));
-    }
-
-    async function resolveGpcTaskOtp(state = {}, taskId = '', options = {}) {
-      let otp = '';
-      const useLocalSmsHelper = Boolean(state?.gopayHelperLocalSmsHelperEnabled);
-      const retryCount = Math.max(0, Number(options?.retryCount) || 0);
-      const helperAfterMs = normalizeEpochMilliseconds(options?.afterMs || options?.after_ms || 0);
-      const lastInputError = String(options?.lastInputError || options?.last_input_error || '').trim();
-      if (useLocalSmsHelper) {
-        try {
-          await addLog(
-            retryCount > 0 || lastInputError
-              ? `步骤 7：${lastInputError || 'OTP 校验未通过'}，正在从本地 OTP Helper 等待新的 GPC OTP...`
-              : '步骤 7：正在从本地 OTP Helper 等待 GPC OTP...',
-            'info'
-          );
-          otp = await pollLocalSmsHelperOtp(state, taskId, {
-            afterMs: helperAfterMs,
-            singleAttempt: true,
-            requestTimeoutMs: 2000,
-            timeoutSeconds: 2,
-          });
-          await addLog('步骤 7：本地 OTP Helper 已读取到 GPC OTP，准备提交验证。', 'ok');
-        } catch (error) {
-          await addLog(`步骤 7：本地 OTP Helper 暂未读取到新 OTP：${error?.message || String(error || '未知错误')}，继续等待远端任务状态更新。`, 'warn');
-        }
-      }
-      if (otp) {
-        return otp;
-      }
-      if (useLocalSmsHelper) {
-        return '';
-      }
-      await addLog('步骤 7：等待用户输入 OTP...', 'info');
-      return requestGpcOtpInput({
-        title: 'GPC OTP 验证',
-        message: retryCount > 0 || lastInputError
-          ? `${lastInputError || '上一次 OTP 校验未通过'}，请重新输入正确的 OTP 验证码（task_id: ${taskId}）`
-          : `请输入收到的 OTP 验证码（task_id: ${taskId}）`,
-        lastInputError,
-        inputDeadlineAt: options?.inputDeadlineAt || options?.input_deadline_at || '',
-        taskId,
-      });
+      return results?.[0]?.result || {};
     }
 
     async function executeGpcHelperBilling(state = {}) {
-      const taskId = String(state?.gopayHelperTaskId || '').trim();
-      const apiUrl = normalizeGpcHelperBaseUrl(state?.gopayHelperApiUrl || '');
-      const apiKey = String(
-        state?.gopayHelperApiKey
-        || state?.gpcApiKey
-        || state?.apiKey
-        || ''
-      ).trim();
-      const deadline = Date.now() + Math.max(120, Math.min(1200, Number(state?.gopayHelperTaskTimeoutSeconds) || 900)) * 1000;
-      let otpSubmitCount = 0;
-      let otpLastSubmittedAt = 0;
-      let lastSubmittedOtp = '';
-      let pinSubmitted = false;
-      let terminalReached = false;
-      let lastProgressSignature = String(state?.gopayHelperTaskProgressSignature || '').trim();
-      let lastProgressAt = normalizeEpochMilliseconds(state?.gopayHelperTaskProgressAt || 0) || Date.now();
-      let lastProgressTaskId = String(state?.gopayHelperTaskProgressTaskId || '').trim();
-      if (lastProgressTaskId !== taskId) {
-        lastProgressSignature = '';
-        lastProgressAt = Date.now();
-        lastProgressTaskId = '';
+      const tabId = await getGpcPortalTabId(state);
+      if (chrome?.tabs?.update) {
+        await chrome.tabs.update(tabId, { url: GPC_PORTAL_URL, active: true }).catch(() => (
+          chrome.tabs.update(tabId, { active: true }).catch(() => {})
+        ));
       }
-      const staleStatusTimeoutMs = getGpcTaskStaleStatusTimeoutMs(state);
+      await addLog('步骤 7：正在等待 GPC 页面加载完成...', 'info');
+      await waitForTabCompleteUntilStopped(tabId);
+      await sleepWithStop(800);
 
-      if (!taskId) {
-        throw new Error('步骤 7：GPC 模式缺少 task_id，请先执行步骤 6。');
-      }
-      if (!apiUrl) {
-        throw new Error('步骤 7：GPC 模式缺少 API 地址。');
-      }
-      if (!apiKey) {
-        throw new Error('步骤 7：GPC 模式缺少 API Key。');
-      }
+      const deadline = Date.now() + getGpcPageTimeoutMs(state);
+      let startAttempts = 0;
+      let lastSignature = '';
+      let hasClickedStart = false;
 
-      const configuredPhoneMode = normalizeGpcHelperPhoneMode(state?.gopayHelperPhoneMode || state?.phoneMode || GPC_HELPER_PHONE_MODE_MANUAL);
-      const rawPin = String(state?.gopayHelperPin || '').trim();
-      const pinDigits = rawPin.replace(/[^\d]/g, '');
-      const pin = normalizeSixDigitPin(rawPin);
-      if (configuredPhoneMode === GPC_HELPER_PHONE_MODE_MANUAL && !pin) {
-        if (taskId && apiUrl && apiKey) {
-          await stopGpcTaskBestEffort(apiUrl, taskId, apiKey, 'PIN 配置错误');
+      while (Date.now() <= deadline) {
+        throwIfStopped();
+        const pageState = await inspectGpcPortalPage(tabId);
+        const buttonText = normalizeText(pageState.startButtonText);
+        const logText = String(pageState.logText || pageState.bodyText || '');
+        const signature = `${buttonText}|${pageState.hasSubscriptionDone ? 'done' : ''}|${pageState.noTrial ? 'no-trial' : ''}|${logText.slice(-300)}`;
+
+        if (signature && signature !== lastSignature) {
+          lastSignature = signature;
+          await addLog(
+            `步骤 7：GPC 页面状态：${buttonText || '未识别按钮'}${pageState.hasSubscriptionDone ? ' / 订阅完成' : ''}`,
+            pageState.hasSubscriptionDone ? 'ok' : 'info'
+          );
         }
-        throw new Error(pinDigits
-          ? '步骤 7：GPC PIN 必须是 6 位数字，请检查侧边栏配置。'
-          : '步骤 7：GPC 手动模式缺少 PIN 配置。');
-      }
 
-      await addLog(`步骤 7：GPC ${configuredPhoneMode === GPC_HELPER_PHONE_MODE_AUTO ? '自动' : '手动'}模式开始轮询任务（task_id: ${taskId}）...`, 'info');
-      try {
-        while (Date.now() <= deadline) {
-          throwIfStopped();
-          const task = await fetchGpcTaskStatus(apiUrl, taskId, apiKey);
-          await addLog(formatGpcTaskStatusLog(task), 'info');
+        if (pageState.noTrial) {
+          throw new Error('PLUS_CHECKOUT_NON_FREE_TRIAL::步骤 7：该账户没有试用资格，当前轮 GPC 充值失败。');
+        }
 
-          if (task.status === 'completed') {
-            terminalReached = true;
-            await setState({
-              plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
-            });
-            await addLog('步骤 7：GPC 任务已完成，准备继续下一步。', 'ok');
-            await completeNodeFromBackground('plus-checkout-billing', {
-              plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
-            });
-            return;
+        if (pageState.hasSubscriptionDone && /开始\s*Plus\s*充值/.test(buttonText)) {
+          await setState({
+            plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
+            gpcPageStatus: 'completed',
+            gpcPageStatusText: '订阅完成',
+          });
+          await addLog('步骤 7：GPC 页面显示订阅完成，准备继续下一步。', 'ok');
+          await completeNodeFromBackground('plus-checkout-billing', {
+            plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
+          });
+          return;
+        }
+
+        if (/任务进行中/.test(buttonText)) {
+          await sleepWithStop(GPC_PAGE_POLL_INTERVAL_MS);
+          continue;
+        }
+
+        if (/开始\s*Plus\s*充值/.test(buttonText) && !pageState.startButtonDisabled) {
+          if (startAttempts >= GPC_PAGE_MAX_START_ATTEMPTS) {
+            throw new Error(`GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面已尝试启动 ${startAttempts} 次仍未显示订阅完成。`);
           }
-
-          if (['failed', 'expired', 'discarded'].includes(task.status)) {
-            terminalReached = true;
-            throw buildGpcTaskEndedError(task, 'GPC 任务已结束，请重新创建任务。');
-          }
-
-          if (shouldWatchGpcTaskProgress(task, state)) {
-            const progressSignature = buildGpcTaskProgressSignature(task);
-            const now = Date.now();
-            if (progressSignature && (progressSignature !== lastProgressSignature || lastProgressTaskId !== taskId)) {
-              lastProgressSignature = progressSignature;
-              lastProgressAt = now;
-              lastProgressTaskId = taskId;
-              await setState({
-                gopayHelperTaskProgressSignature: progressSignature,
-                gopayHelperTaskProgressAt: now,
-                gopayHelperTaskProgressTaskId: taskId,
-              });
-            } else if (progressSignature && now - lastProgressAt >= staleStatusTimeoutMs) {
-              throw buildGpcTaskStaleStatusError(task, staleStatusTimeoutMs);
-            }
+          if (hasClickedStart && !pageState.hasSubscriptionDone) {
+            await addLog('步骤 7：GPC 页面回到开始状态但未显示订阅完成，准备再次启动。', 'warn');
           } else {
-            lastProgressSignature = '';
-            lastProgressAt = Date.now();
-            lastProgressTaskId = '';
-            await setState({
-              gopayHelperTaskProgressSignature: '',
-              gopayHelperTaskProgressAt: 0,
-              gopayHelperTaskProgressTaskId: taskId,
-            });
+            await addLog('步骤 7：正在点击“开始 Plus 充值”。', 'info');
           }
-
-          if (isGpcTaskOtpWait(task, state)) {
-            if (isGpcTaskInputDeadlineExpired(task)) {
-              throw buildGpcInputDeadlineError(task, 'OTP');
-            }
-            if (task.last_input_error) {
-              await addLog(
-                `步骤 7：${task.last_input_error}${task.otp_invalid_count ? `（OTP 错误 ${task.otp_invalid_count} 次）` : ''}`,
-                'warn'
-              );
-            }
-            let otp = '';
-            try {
-              otp = await resolveGpcTaskOtp(state, taskId, {
-                retryCount: otpSubmitCount,
-                afterMs: otpLastSubmittedAt,
-                lastInputError: task.last_input_error,
-                inputDeadlineAt: task.api_input_deadline_at,
-              });
-            } catch (error) {
-              if (/OTP\s*输入(?:已取消|超时)/i.test(error?.message || String(error || ''))) {
-                throw new Error(`GPC_TASK_ENDED::${error?.message || 'OTP 输入已取消'}，已结束当前 GPC 任务。`);
-              }
-              throw error;
-            }
-            if (!otp) {
-              await sleepWithStop(GPC_TASK_POLL_INTERVAL_MS);
-              continue;
-            }
-            const normalizedOtp = normalizeSixDigitOtp(otp);
-            if (!normalizedOtp) {
-              await addLog('步骤 7：OTP 必须是 6 位数字，等待重新输入。', 'warn');
-              await sleepWithStop(GPC_TASK_POLL_INTERVAL_MS);
-              continue;
-            }
-            if (task.last_input_error && lastSubmittedOtp && normalizedOtp === lastSubmittedOtp) {
-              await addLog('步骤 7：本地 OTP Helper 返回的仍是上次已失败 OTP，等待新的验证码。', 'warn');
-              await sleepWithStop(GPC_TASK_POLL_INTERVAL_MS);
-              continue;
-            }
-            await addLog('步骤 7：正在提交 OTP...', 'info');
-            try {
-              await postGpcTaskAction(
-                apiUrl,
-                taskId,
-                'otp',
-                buildGpcTaskOtpPayload({ otp: normalizedOtp }),
-                apiKey,
-                30000
-              );
-            } catch (error) {
-              if (isGpcOtpFormatConflict(error)) {
-                await addLog(`步骤 7：OTP 提交被拒绝：${error?.message || String(error || 'OTP 格式错误')}，等待重新输入。`, 'warn');
-                await sleepWithStop(GPC_TASK_POLL_INTERVAL_MS);
-                continue;
-              }
-              throw error;
-            }
-            otpSubmitCount += 1;
-            otpLastSubmittedAt = Date.now();
-            lastSubmittedOtp = normalizedOtp;
-            await addLog('步骤 7：OTP 已提交，继续等待 GPC 任务状态更新。', 'ok');
-          } else if (isGpcTaskPinWait(task, state) && !pinSubmitted) {
-            if (isGpcTaskInputDeadlineExpired(task)) {
-              throw buildGpcInputDeadlineError(task, 'PIN');
-            }
-            await addLog('步骤 7：正在提交 PIN...', 'info');
-            let pinTask = null;
-            try {
-              pinTask = await postGpcTaskAction(
-                apiUrl,
-                taskId,
-                'pin',
-                buildGpcTaskPinPayload({ pin }),
-                apiKey,
-                30000
-              );
-            } catch (error) {
-              throw new Error(`GPC_TASK_ENDED::${error?.message || String(error || 'PIN 提交失败，请重新创建任务。')}`);
-            }
-            pinSubmitted = true;
-            await setState({
-              gopayHelperPinPayload: pinTask,
-            });
-            await addLog('步骤 7：PIN 已提交，继续轮询直到任务完成。', 'ok');
+          const clickResult = await clickGpcStartButton(tabId);
+          if (!clickResult.clicked) {
+            await addLog(`步骤 7：暂时无法点击开始按钮（${clickResult.reason || '未知原因'}），继续等待。`, 'warn');
+            await sleepWithStop(GPC_PAGE_POLL_INTERVAL_MS);
+            continue;
           }
+          startAttempts += 1;
+          hasClickedStart = true;
+          await setState({
+            plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
+            gpcPageStatus: 'running',
+            gpcPageStatusText: `页面启动第 ${startAttempts} 次`,
+          });
+          await sleepWithStop(GPC_PAGE_POLL_INTERVAL_MS);
+          continue;
+        }
 
-          await sleepWithStop(GPC_TASK_POLL_INTERVAL_MS);
-        }
-        throw new Error('步骤 7：GPC 任务轮询超时。');
-      } catch (error) {
-        if (!terminalReached) {
-          await stopGpcTaskBestEffort(apiUrl, taskId, apiKey, error?.message || '流程中断');
-        }
-        if (isGpcTaskEndedError(error)) {
-          await clearGpcTaskRuntimeState();
-        }
-        throw error;
+        await sleepWithStop(GPC_PAGE_POLL_INTERVAL_MS);
       }
+
+      throw new Error('GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面等待超时，未检测到订阅完成。');
     }
 
     function resolveMeiguodizhiCountryCode(value = '') {

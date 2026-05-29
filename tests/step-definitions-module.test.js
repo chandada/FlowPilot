@@ -3,6 +3,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { readStepDefinitionsBundle } = require('./helpers/script-bundles.js');
 
+function stripHtmlComments(html) {
+  return String(html || '').replace(/<!--[\s\S]*?-->/g, '');
+}
+
+function getSelectMarkup(html, selectId) {
+  const match = String(html || '').match(new RegExp(`<select\\b[^>]*id="${selectId}"[^>]*>[\\s\\S]*?<\\/select>`));
+  assert.ok(match, `Expected select #${selectId} to exist`);
+  return match[0];
+}
+
 test('step definitions module exposes ordered normal and Plus step metadata', () => {
   const globalScope = {};
   const api = new Function('self', `${readStepDefinitionsBundle()}; return self.MultiPageStepDefinitions;`)(globalScope);
@@ -319,8 +329,8 @@ test('step definitions module exposes ordered normal and Plus step metadata', ()
   );
   assert.deepStrictEqual(api.getStepIds({ plusModeEnabled: true, plusPaymentMethod: 'gpc-helper' }), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   assert.equal(api.getLastStepId({ plusModeEnabled: true, plusPaymentMethod: 'gpc-helper' }), 13);
-  assert.equal(gpcSteps[6].title, '创建 GPC 订单');
-  assert.equal(gpcSteps[7].title, '等待 GPC 任务完成');
+  assert.equal(gpcSteps[6].title, '打开 GPC 页面并准备');
+  assert.equal(gpcSteps[7].title, '启动并等待 GPC 完成');
 });
 
 test('Plus no-payment mode removes only payment chain nodes', () => {
@@ -639,8 +649,12 @@ test('sidepanel html loads shared step definitions before sidepanel bootstrap', 
 
 test('sidepanel html exposes Plus mode, PayPal, and GoPay settings', () => {
   const html = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
+  const visibleHtml = stripHtmlComments(html);
+  const plusPaymentSelect = getSelectMarkup(visibleHtml, 'select-plus-payment-method');
   assert.match(html, /id="input-plus-mode-enabled"/);
   assert.match(html, /id="select-plus-payment-method"/);
+  assert.match(plusPaymentSelect, /<option value="gpc-helper">GPC<\/option>/);
+  assert.doesNotMatch(plusPaymentSelect, /<option value="gopay">GoPay<\/option>/);
   assert.match(html, /<option value="none">无需支付<\/option>/);
   assert.match(html, /id="select-paypal-account"/);
   assert.match(html, /id="btn-add-paypal-account"/);
@@ -649,21 +663,10 @@ test('sidepanel html exposes Plus mode, PayPal, and GoPay settings', () => {
   assert.match(html, /id="input-gopay-pin"/);
   assert.match(html, /<option value="gpc-helper">GPC<\/option>/);
   assert.match(html, /id="btn-gpc-card-key-purchase"/);
+  assert.match(html, /id="btn-gpc-card-key-query"/);
   assert.match(html, />购买卡密</);
-  assert.match(html, /GPC API/);
-  assert.match(html, /id="input-gpc-helper-api"/);
-  assert.match(html, /id="btn-gpc-helper-convert-api-key"/);
-  assert.match(html, />转换 API Key</);
-  assert.match(html, /GPC API Key/);
-  assert.match(html, /id="input-gpc-helper-card-key"/);
-  assert.match(html, /GPC 模式/);
-  assert.match(html, /id="select-gpc-helper-phone-mode"/);
-  assert.match(html, /<option value="auto">自动模式<\/option>/);
-  assert.match(html, /id="btn-gpc-helper-balance"/);
-  assert.match(html, /id="input-gpc-helper-phone"/);
-  assert.match(html, /id="select-gpc-helper-otp-channel"/);
-  assert.match(html, /id="input-gpc-helper-local-sms-enabled"/);
-  assert.match(html, /id="input-gpc-helper-local-sms-url"/);
-  assert.match(html, /id="input-gpc-helper-pin"/);
+  assert.match(html, />查询</);
+  assert.match(html, /GPC 卡密/);
+  assert.match(html, /id="input-gpc-card-key"/);
   assert.match(html, /id="shared-form-modal"/);
 });

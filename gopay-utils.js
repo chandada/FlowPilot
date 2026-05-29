@@ -6,10 +6,8 @@
   const PLUS_PAYMENT_METHOD_NONE = 'none';
   const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
   const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
-  const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
-  const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-  const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
-  const ALLOWED_GPC_HELPER_REMOTE_HOST = 'gpc.qlhazycoder.top';
+  const DEFAULT_GPC_BASE_URL = 'https://gpc.qlhazycoder.top';
+  const ALLOWED_GPC_REMOTE_HOST = 'gpc.qlhazycoder.top';
 
   function normalizePlusPaymentMethod(value = '') {
     const normalized = String(value || '').trim().toLowerCase();
@@ -57,19 +55,20 @@
     return String(value || '').trim().replace(/[^\d]/g, '');
   }
 
-  function normalizeGpcHelperPhoneMode(value = '') {
-    const normalized = String(value || '').trim().toLowerCase();
-    return normalized === GPC_HELPER_PHONE_MODE_AUTO || normalized === 'builtin'
-      ? GPC_HELPER_PHONE_MODE_AUTO
-      : GPC_HELPER_PHONE_MODE_MANUAL;
-  }
-
   function normalizeGpcRemainingUses(value) {
     if (value === undefined || value === null || String(value).trim() === '') {
       return null;
     }
     const numeric = Number(value);
     return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : null;
+  }
+
+  function normalizeGpcCardKey(value = '') {
+    return String(value || '').trim().toUpperCase();
+  }
+
+  function isGpcCardKeyFormat(value = '') {
+    return /^GPC-[A-F0-9]{8}-[A-F0-9]{8}-[A-F0-9]{8}$/.test(normalizeGpcCardKey(value));
   }
 
   function unwrapGpcBalancePayload(payload = {}) {
@@ -85,13 +84,13 @@
       'uses',
       'available_uses',
       'availableUses',
-      'auto_mode_enabled',
-      'autoModeEnabled',
-      'auto_enabled',
-      'autoEnabled',
       'status',
       'card_status',
       'cardStatus',
+      'card_type',
+      'cardType',
+      'expires_at',
+      'expiresAt',
     ].some((key) => Object.prototype.hasOwnProperty.call(data, key));
     if (!hasBalanceFields && data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
       return data.data;
@@ -115,20 +114,7 @@
     );
   }
 
-  function isGpcAutoModeEnabled(payload = {}) {
-    const data = unwrapGpcBalancePayload(payload);
-    if (!data || typeof data !== 'object') {
-      return false;
-    }
-    const raw = data.auto_mode_enabled ?? data.autoModeEnabled ?? data.auto_enabled ?? data.autoEnabled;
-    if (typeof raw === 'boolean') {
-      return raw;
-    }
-    const normalized = String(raw ?? '').trim().toLowerCase();
-    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'enabled';
-  }
-
-  function getGpcApiKeyStatus(payload = {}) {
+  function getGpcCardStatus(payload = {}) {
     const data = unwrapGpcBalancePayload(payload);
     if (!data || typeof data !== 'object') {
       return '';
@@ -136,41 +122,30 @@
     return String(data.status || data.card_status || data.cardStatus || '').trim();
   }
 
-  function normalizeGpcOtpChannel(value = '') {
-    const normalized = String(value || '').trim().toLowerCase();
-    if (normalized === 'sms') {
-      return 'sms';
-    }
-    return 'whatsapp';
-  }
-
-  function normalizeGpcHelperBaseUrl(apiUrl = '') {
-    let normalized = String(apiUrl || DEFAULT_GPC_HELPER_API_URL).trim();
+  function normalizeGpcBaseUrl(apiUrl = '') {
+    let normalized = String(apiUrl || DEFAULT_GPC_BASE_URL).trim();
     if (!normalized) {
-      return DEFAULT_GPC_HELPER_API_URL;
+      return DEFAULT_GPC_BASE_URL;
     }
     normalized = normalized.replace(/\/+$/g, '');
     normalized = normalized.replace(/\/api\/checkout\/start$/i, '');
-    normalized = normalized.replace(/\/api\/gopay\/(?:otp|pin)$/i, '');
-    normalized = normalized.replace(/\/api\/gp\/tasks(?:\/[^/?#]+)?(?:\/(?:otp|pin|stop))?(?:\?.*)?$/i, '');
-    normalized = normalized.replace(/\/api\/gp\/balance(?:\?.*)?$/i, '');
+    normalized = normalized.replace(/\/api\/web\/card\/balance(?:\?.*)?$/i, '');
     normalized = normalized.replace(/\/api\/card\/balance(?:\?.*)?$/i, '');
-    normalized = normalized.replace(/\/api\/card\/redeem-api-key(?:\?.*)?$/i, '');
 
     try {
       const parsed = new URL(normalized);
       const hostname = parsed.hostname.toLowerCase();
-      if (hostname === ALLOWED_GPC_HELPER_REMOTE_HOST || hostname === 'localhost' || hostname === '127.0.0.1') {
-        return normalized || DEFAULT_GPC_HELPER_API_URL;
+      if (hostname === ALLOWED_GPC_REMOTE_HOST || hostname === 'localhost' || hostname === '127.0.0.1') {
+        return normalized || DEFAULT_GPC_BASE_URL;
       }
-      return DEFAULT_GPC_HELPER_API_URL;
+      return DEFAULT_GPC_BASE_URL;
     } catch {
-      return DEFAULT_GPC_HELPER_API_URL;
+      return DEFAULT_GPC_BASE_URL;
     }
   }
 
-  function buildGpcHelperApiUrl(apiUrl = '', path = '') {
-    const baseUrl = normalizeGpcHelperBaseUrl(apiUrl);
+  function buildGpcApiUrl(apiUrl = '', path = '') {
+    const baseUrl = normalizeGpcBaseUrl(apiUrl);
     if (!baseUrl) {
       return '';
     }
@@ -178,42 +153,13 @@
     return `${baseUrl}${normalizedPath}`;
   }
 
-  function buildGpcApiKeyBalanceUrl(apiUrl = '') {
-    return buildGpcHelperApiUrl(apiUrl, '/api/gp/balance');
-  }
-
-  function buildGpcCardBalanceUrl(apiUrl = '') {
-    return buildGpcApiKeyBalanceUrl(apiUrl);
-  }
-
-  function buildGpcApiKeyHeaders(apiKey = '', extraHeaders = {}) {
-    const headers = {
-      ...(extraHeaders && typeof extraHeaders === 'object' ? extraHeaders : {}),
-    };
-    const normalizedApiKey = String(apiKey || '').trim();
-    if (normalizedApiKey) {
-      headers['X-API-Key'] = normalizedApiKey;
+  function buildGpcCardBalanceUrl(apiUrl = '', cardKey = '') {
+    const baseUrl = buildGpcApiUrl(apiUrl, '/api/web/card/balance');
+    const normalizedCardKey = normalizeGpcCardKey(cardKey);
+    if (!baseUrl || !normalizedCardKey) {
+      return baseUrl;
     }
-    return headers;
-  }
-
-  function buildGpcTaskCreateUrl(apiUrl = '') {
-    return buildGpcHelperApiUrl(apiUrl, '/api/gp/tasks');
-  }
-
-  function normalizeGpcTaskId(value = '') {
-    return String(value || '').trim();
-  }
-
-  function buildGpcTaskQueryUrl(apiUrl = '', taskId = '') {
-    const normalizedTaskId = normalizeGpcTaskId(taskId);
-    return buildGpcHelperApiUrl(apiUrl, `/api/gp/tasks/${encodeURIComponent(normalizedTaskId)}`);
-  }
-
-  function buildGpcTaskActionUrl(apiUrl = '', taskId = '', action = '') {
-    const normalizedTaskId = normalizeGpcTaskId(taskId);
-    const normalizedAction = String(action || '').trim().replace(/^\/+|\/+$/g, '');
-    return buildGpcHelperApiUrl(apiUrl, `/api/gp/tasks/${encodeURIComponent(normalizedTaskId)}/${normalizedAction}`);
+    return `${baseUrl}?card_key=${encodeURIComponent(normalizedCardKey)}`;
   }
 
   function unwrapGpcResponse(payload = {}) {
@@ -329,56 +275,6 @@
     return status ? `HTTP ${status}` : '未知错误';
   }
 
-  function buildGpcOtpPayload(input = {}) {
-    const payload = {
-      reference_id: String(input.reference_id ?? input.referenceId ?? '').trim(),
-      otp: normalizeGoPayOtp(input.otp ?? input.code ?? ''),
-    };
-    const flowId = String(input.flow_id ?? input.flowId ?? '').trim();
-    const gopayGuid = String(input.gopay_guid ?? input.gopayGuid ?? '').trim();
-    const redirectUrl = String(input.redirect_url ?? input.redirectUrl ?? '').trim();
-    if (flowId) payload.flow_id = flowId;
-    if (gopayGuid) payload.gopay_guid = gopayGuid;
-    if (redirectUrl) payload.redirect_url = redirectUrl;
-    return payload;
-  }
-
-  function buildGpcOtpRetryPayload(input = {}) {
-    const payload = buildGpcOtpPayload(input);
-    return { ...payload, code: payload.otp };
-  }
-
-  function buildGpcPinPayload(input = {}) {
-    const payload = {
-      reference_id: String(input.reference_id ?? input.referenceId ?? '').trim(),
-      challenge_id: String(input.challenge_id ?? input.challengeId ?? '').trim(),
-      gopay_guid: String(input.gopay_guid ?? input.gopayGuid ?? '').trim(),
-      pin: normalizeGoPayPin(input.pin ?? ''),
-    };
-    const flowId = String(input.flow_id ?? input.flowId ?? '').trim();
-    const redirectUrl = String(input.redirect_url ?? input.redirectUrl ?? '').trim();
-    if (flowId) payload.flow_id = flowId;
-    if (redirectUrl) payload.redirect_url = redirectUrl;
-    return payload;
-  }
-
-  function buildGpcPinRetryPayload(input = {}) {
-    const payload = buildGpcPinPayload(input);
-    return { ...payload, challengeId: payload.challenge_id };
-  }
-
-  function buildGpcTaskOtpPayload(input = {}) {
-    return {
-      otp: normalizeGoPayOtp(input.otp ?? input.code ?? ''),
-    };
-  }
-
-  function buildGpcTaskPinPayload(input = {}) {
-    return {
-      pin: normalizeGoPayPin(input.pin ?? ''),
-    };
-  }
-
   function formatGpcBalancePayload(payload = {}) {
     const data = unwrapGpcBalancePayload(payload);
     if (!data || typeof data !== 'object') {
@@ -418,43 +314,28 @@
 
   return {
     DEFAULT_GOPAY_COUNTRY_CODE,
-    DEFAULT_GPC_HELPER_API_URL,
-    GPC_HELPER_PHONE_MODE_AUTO,
-    GPC_HELPER_PHONE_MODE_MANUAL,
+    DEFAULT_GPC_BASE_URL,
     PLUS_PAYMENT_METHOD_GPC_HELPER,
     PLUS_PAYMENT_METHOD_GOPAY,
     PLUS_PAYMENT_METHOD_NONE,
     PLUS_PAYMENT_METHOD_PAYPAL,
     PLUS_PAYMENT_METHOD_PAYPAL_HOSTED,
     buildGpcCardBalanceUrl,
-    buildGpcApiKeyBalanceUrl,
-    buildGpcApiKeyHeaders,
-    buildGpcHelperApiUrl,
-    buildGpcOtpPayload,
-    buildGpcOtpRetryPayload,
-    buildGpcPinPayload,
-    buildGpcPinRetryPayload,
-    buildGpcTaskActionUrl,
-    buildGpcTaskCreateUrl,
-    buildGpcTaskOtpPayload,
-    buildGpcTaskPinPayload,
-    buildGpcTaskQueryUrl,
+    buildGpcApiUrl,
     extractGpcResponseErrorDetail,
     formatGpcBalancePayload,
-    getGpcApiKeyStatus,
+    getGpcCardStatus,
     getGpcBalanceRemainingUses,
     isGpcUnifiedResponseOk,
-    isGpcAutoModeEnabled,
-    normalizeGpcHelperBaseUrl,
-    normalizeGpcHelperPhoneMode,
+    isGpcCardKeyFormat,
+    normalizeGpcBaseUrl,
+    normalizeGpcCardKey,
     normalizeGpcRemainingUses,
-    normalizeGpcTaskId,
     normalizeGoPayCountryCode,
     normalizeGoPayPhone,
     normalizeGoPayPhoneForCountry,
     normalizeGoPayOtp,
     normalizeGoPayPin,
-    normalizeGpcOtpChannel,
     normalizePlusPaymentMethod,
     unwrapGpcBalancePayload,
     unwrapGpcResponse,

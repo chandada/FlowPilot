@@ -227,29 +227,10 @@ const rowHostedCheckoutPhone = document.getElementById('row-hosted-checkout-phon
 const inputHostedCheckoutPhone = document.getElementById('input-hosted-checkout-phone');
 const rowPlusHostedCheckoutOauthDelay = document.getElementById('row-plus-hosted-checkout-oauth-delay');
 const inputPlusHostedCheckoutOauthDelaySeconds = document.getElementById('input-plus-hosted-checkout-oauth-delay-seconds');
-const rowGpcHelperApi = document.getElementById('row-gpc-helper-api');
-const inputGpcHelperApi = document.getElementById('input-gpc-helper-api');
-const btnGpcHelperConvertApiKey = document.getElementById('btn-gpc-helper-convert-api-key');
-const rowGpcHelperCardKey = document.getElementById('row-gpc-helper-card-key');
-const inputGpcHelperCardKey = document.getElementById('input-gpc-helper-card-key');
-const btnToggleGpcHelperCardKey = document.getElementById('btn-toggle-gpc-helper-card-key');
-const btnGpcHelperBalance = document.getElementById('btn-gpc-helper-balance');
-const displayGpcHelperBalance = document.getElementById('display-gpc-helper-balance');
-const rowGpcHelperPhoneMode = document.getElementById('row-gpc-helper-phone-mode');
-const selectGpcHelperPhoneMode = document.getElementById('select-gpc-helper-phone-mode');
-const rowGpcHelperCountryCode = document.getElementById('row-gpc-helper-country-code');
-const selectGpcHelperCountryCode = document.getElementById('select-gpc-helper-country-code');
-const rowGpcHelperPhone = document.getElementById('row-gpc-helper-phone');
-const inputGpcHelperPhone = document.getElementById('input-gpc-helper-phone');
-const rowGpcHelperOtpChannel = document.getElementById('row-gpc-helper-otp-channel');
-const selectGpcHelperOtpChannel = document.getElementById('select-gpc-helper-otp-channel');
-const rowGpcHelperLocalSmsEnabled = document.getElementById('row-gpc-helper-local-sms-enabled');
-const inputGpcHelperLocalSmsEnabled = document.getElementById('input-gpc-helper-local-sms-enabled');
-const rowGpcHelperLocalSmsUrl = document.getElementById('row-gpc-helper-local-sms-url');
-const inputGpcHelperLocalSmsUrl = document.getElementById('input-gpc-helper-local-sms-url');
-const rowGpcHelperPin = document.getElementById('row-gpc-helper-pin');
-const inputGpcHelperPin = document.getElementById('input-gpc-helper-pin');
-const btnToggleGpcHelperPin = document.getElementById('btn-toggle-gpc-helper-pin');
+const rowGpcCardKey = document.getElementById('row-gpc-card-key');
+const inputGpcCardKey = document.getElementById('input-gpc-card-key');
+const displayGpcCardKeyStatus = document.getElementById('display-gpc-card-key-status');
+const btnGpcCardKeyQuery = document.getElementById('btn-gpc-card-key-query');
 const rowGoPayCountryCode = document.getElementById('row-gopay-country-code');
 const selectGoPayCountryCode = document.getElementById('select-gopay-country-code');
 const rowGoPayPhone = document.getElementById('row-gopay-phone');
@@ -600,10 +581,7 @@ const PLUS_PAYMENT_METHOD_PAYPAL_HOSTED = 'paypal-hosted';
 const PLUS_PAYMENT_METHOD_NONE = 'none';
 const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
 const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
-const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
-const GPC_HELPER_PORTAL_URL = 'https://gpc.qlhazycoder.top/';
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
+const DEFAULT_GPC_BASE_URL = 'https://gpc.qlhazycoder.top';
 const DEFAULT_PLUS_HOSTED_CHECKOUT_OAUTH_DELAY_SECONDS = 3;
 const DEFAULT_PLUS_PAYMENT_METHOD = PLUS_PAYMENT_METHOD_PAYPAL_HOSTED;
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
@@ -1792,9 +1770,6 @@ const PRIVACY_MASKED_INPUT_IDS = Object.freeze([
   'input-codex2api-url',
   'input-kiro-rs-url',
   'input-grok-webchat2api-url',
-  'input-gpc-helper-api',
-  'input-gpc-helper-phone',
-  'input-gpc-helper-local-sms-url',
   'input-gopay-phone',
   'input-gopay-otp',
   'input-email-prefix',
@@ -3652,147 +3627,6 @@ function resolvePlusManualContinuationActionLabelFromState(state = latestState) 
   return getPlusAccountAccessStrategyContinuationLabel(effectiveStrategy, targetId);
 }
 
-function normalizeGpcHelperPhoneModeValue(value = '') {
-  const rootScope = typeof window !== 'undefined' ? window : globalThis;
-  if (rootScope.GoPayUtils?.normalizeGpcHelperPhoneMode) {
-    return rootScope.GoPayUtils.normalizeGpcHelperPhoneMode(value);
-  }
-  const normalized = String(value || '').trim().toLowerCase();
-  return normalized === GPC_HELPER_PHONE_MODE_AUTO || normalized === 'builtin'
-    ? GPC_HELPER_PHONE_MODE_AUTO
-    : GPC_HELPER_PHONE_MODE_MANUAL;
-}
-
-function getGpcHelperAutoModeEnabled(state = latestState) {
-  return Boolean(state?.gopayHelperAutoModeEnabled);
-}
-
-function normalizeGpcAutoModePermissionValue(value) {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'number') {
-    if (value === 1) return true;
-    if (value === 0) return false;
-  }
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (!normalized) {
-    return null;
-  }
-  if (['true', '1', 'yes', 'y', 'on', 'enabled', 'enable'].includes(normalized)) {
-    return true;
-  }
-  if (['false', '0', 'no', 'n', 'off', 'disabled', 'disable'].includes(normalized)) {
-    return false;
-  }
-  return null;
-}
-
-function getGpcAutoModePermissionFromPayload(payload = {}) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return null;
-  }
-  for (const key of ['auto_mode_enabled', 'autoModeEnabled', 'auto_enabled', 'autoEnabled']) {
-    if (payload[key] !== undefined) {
-      return normalizeGpcAutoModePermissionValue(payload[key]);
-    }
-  }
-  if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
-    return getGpcAutoModePermissionFromPayload(payload.data);
-  }
-  return null;
-}
-
-function shouldPreserveSelectedGpcAutoMode(state = latestState) {
-  const payloadPermission = getGpcAutoModePermissionFromPayload(state?.gopayHelperBalancePayload);
-  return normalizeGpcHelperPhoneModeValue(state?.gopayHelperPhoneMode) === GPC_HELPER_PHONE_MODE_AUTO
-    && (Boolean(state?.gopayHelperAutoModeEnabled) || payloadPermission === true);
-}
-
-function hasGpcAutoModePermissionField(payload = {}) {
-  return getGpcAutoModePermissionFromPayload(payload) !== null;
-}
-
-function isGpcAutoModePermissionDenied(state = latestState) {
-  const payloadPermission = getGpcAutoModePermissionFromPayload(state?.gopayHelperBalancePayload);
-  return payloadPermission === false;
-}
-
-function normalizeGpcRemainingUsesValue(value) {
-  const rootScope = typeof window !== 'undefined' ? window : globalThis;
-  if (rootScope.GoPayUtils?.normalizeGpcRemainingUses) {
-    return rootScope.GoPayUtils.normalizeGpcRemainingUses(value);
-  }
-  if (value === undefined || value === null || String(value).trim() === '') {
-    return null;
-  }
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : null;
-}
-
-function getGpcBalanceRemainingUsesFromResponse(response = {}) {
-  const rootScope = typeof window !== 'undefined' ? window : globalThis;
-  if (rootScope.GoPayUtils?.getGpcBalanceRemainingUses) {
-    const remaining = rootScope.GoPayUtils.getGpcBalanceRemainingUses(response?.data || response?.payload || response);
-    if (remaining !== null && remaining !== undefined) {
-      return remaining;
-    }
-  }
-  return normalizeGpcRemainingUsesValue(
-    response?.remainingUses
-    ?? response?.data?.remaining_uses
-    ?? response?.data?.remainingUses
-    ?? response?.payload?.data?.remaining_uses
-    ?? response?.payload?.remaining_uses
-    ?? response?.payload?.remainingUses
-  );
-}
-
-function getGpcAutoModeEnabledFromResponse(response = {}) {
-  if (typeof response?.autoModeEnabled === 'boolean') {
-    return response.autoModeEnabled;
-  }
-  const rootScope = typeof window !== 'undefined' ? window : globalThis;
-  if (rootScope.GoPayUtils?.isGpcAutoModeEnabled) {
-    return rootScope.GoPayUtils.isGpcAutoModeEnabled(response?.data || response?.payload || response);
-  }
-  return Boolean(
-    response?.data?.auto_mode_enabled
-    ?? response?.data?.autoModeEnabled
-    ?? response?.payload?.data?.auto_mode_enabled
-    ?? response?.payload?.auto_mode_enabled
-    ?? response?.payload?.autoModeEnabled
-  );
-}
-
-function normalizeGpcOtpChannelValue(value = '') {
-  const rootScope = typeof window !== 'undefined' ? window : globalThis;
-  if (rootScope.GoPayUtils?.normalizeGpcOtpChannel) {
-    return rootScope.GoPayUtils.normalizeGpcOtpChannel(value);
-  }
-  return String(value || '').trim().toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
-}
-
-function normalizeGpcLocalSmsHelperBaseUrlValue(value = '') {
-  const fallback = 'http://127.0.0.1:18767';
-  const rawValue = String(value || fallback).trim();
-  try {
-    const parsed = new URL(rawValue);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return fallback;
-    }
-    const endpointPath = parsed.pathname.replace(/\/+$/g, '') || '/';
-    if (['/otp', '/latest-otp', '/health'].includes(endpointPath)) {
-      parsed.pathname = '';
-      parsed.search = '';
-      parsed.hash = '';
-    }
-    return parsed.toString().replace(/\/$/, '');
-  } catch {
-    return fallback;
-  }
-}
-
 function hasOwnStateValue(source, key) {
   return Object.prototype.hasOwnProperty.call(source, key);
 }
@@ -4466,8 +4300,8 @@ function applyYydsMailSettingsState(state = {}) {
 }
 
 function collectSettingsPayload() {
-  const defaultGpcHelperApiUrl = typeof DEFAULT_GPC_HELPER_API_URL !== 'undefined'
-    ? DEFAULT_GPC_HELPER_API_URL
+  const defaultGpcBaseUrl = typeof DEFAULT_GPC_BASE_URL !== 'undefined'
+    ? DEFAULT_GPC_BASE_URL
     : 'https://gpc.qlhazycoder.top';
   const normalizeYydsBaseUrlValue = typeof normalizeYydsMailBaseUrl === 'function'
     ? normalizeYydsMailBaseUrl
@@ -4595,36 +4429,6 @@ function collectSettingsPayload() {
       .map((line) => line.trim())
       .filter(Boolean)
       .join('\n'));
-  const normalizeGpcOtpChannelSafe = typeof normalizeGpcOtpChannelValue === 'function'
-    ? normalizeGpcOtpChannelValue
-    : ((value = '') => {
-      const rootScope = typeof window !== 'undefined' ? window : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcOtpChannel) {
-        return rootScope.GoPayUtils.normalizeGpcOtpChannel(value);
-      }
-      return String(value || '').trim().toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
-    });
-  const normalizeGpcLocalSmsHelperBaseUrlSafe = typeof normalizeGpcLocalSmsHelperBaseUrlValue === 'function'
-    ? normalizeGpcLocalSmsHelperBaseUrlValue
-    : ((value = '') => {
-      const fallback = 'http://127.0.0.1:18767';
-      const rawValue = String(value || fallback).trim();
-      try {
-        const parsed = new URL(rawValue);
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-          return fallback;
-        }
-        const endpointPath = parsed.pathname.replace(/\/+$/g, '') || '/';
-        if (['/otp', '/latest-otp', '/health'].includes(endpointPath)) {
-          parsed.pathname = '';
-          parsed.search = '';
-          parsed.hash = '';
-        }
-        return parsed.toString().replace(/\/$/, '');
-      } catch {
-        return fallback;
-      }
-    });
   const normalizeMaDaoBaseUrlSafe = typeof normalizeMaDaoBaseUrlValue === 'function'
     ? normalizeMaDaoBaseUrlValue
     : ((value = '') => {
@@ -5208,25 +5012,6 @@ function collectSettingsPayload() {
     : rawPhoneVerificationEnabled;
   const effectiveSignupMethod = capabilityState?.effectiveSignupMethod || selectedSignupMethod;
   const plusPaymentMethod = getSelectedPlusPaymentMethod();
-  const normalizeGpcHelperPhoneModeSafe = typeof normalizeGpcHelperPhoneModeValue === 'function'
-    ? normalizeGpcHelperPhoneModeValue
-    : ((value = '') => String(value || '').trim().toLowerCase() === 'auto' || String(value || '').trim().toLowerCase() === 'builtin' ? 'auto' : 'manual');
-  const selectedGpcPhoneMode = normalizeGpcHelperPhoneModeSafe(
-    typeof selectGpcHelperPhoneMode !== 'undefined' && selectGpcHelperPhoneMode
-      ? selectGpcHelperPhoneMode.value
-      : (latestState?.gopayHelperPhoneMode || 'manual')
-  );
-  const effectiveGpcPhoneMode = selectedGpcPhoneMode;
-  const selectedGpcOtpChannel = normalizeGpcOtpChannelSafe(
-    typeof selectGpcHelperOtpChannel !== 'undefined' && selectGpcHelperOtpChannel
-      ? selectGpcHelperOtpChannel.value
-      : (latestState?.gopayHelperOtpChannel || 'whatsapp')
-  );
-  const selectedGpcLocalSmsHelperEnabled = effectiveGpcPhoneMode === 'auto' ? false : Boolean(
-    typeof inputGpcHelperLocalSmsEnabled !== 'undefined' && inputGpcHelperLocalSmsEnabled
-      ? inputGpcHelperLocalSmsEnabled.checked
-      : latestState?.gopayHelperLocalSmsHelperEnabled
-  );
   const selectedSub2ApiGroupName = String(inputSub2ApiGroup.value || '').trim();
   const sub2apiGroupNames = [];
   const seenSub2ApiGroupNames = new Set();
@@ -5382,36 +5167,12 @@ function collectSettingsPayload() {
       : (typeof inputGoPayPin !== 'undefined' && inputGoPayPin
         ? String(inputGoPayPin.value || '')
         : String(latestState?.gopayPin || '')),
-    gopayHelperApiUrl: window.GoPayUtils?.normalizeGpcHelperBaseUrl
-      ? window.GoPayUtils.normalizeGpcHelperBaseUrl(defaultGpcHelperApiUrl)
-      : String(defaultGpcHelperApiUrl).trim().replace(/\/+$/g, ''),
-    gopayHelperApiKey: typeof inputGpcHelperCardKey !== 'undefined' && inputGpcHelperCardKey
-      ? String(inputGpcHelperCardKey.value || '').trim()
-      : String(latestState?.gopayHelperApiKey || latestState?.gopayHelperCardKey || '').trim(),
-    gopayHelperCardKey: '',
-    gopayHelperPhoneMode: effectiveGpcPhoneMode,
-    gopayHelperCountryCode: window.GoPayUtils?.normalizeGoPayCountryCode
-      ? window.GoPayUtils.normalizeGoPayCountryCode(typeof selectGpcHelperCountryCode !== 'undefined' && selectGpcHelperCountryCode ? selectGpcHelperCountryCode.value : latestState?.gopayHelperCountryCode)
-      : (typeof selectGpcHelperCountryCode !== 'undefined' && selectGpcHelperCountryCode
-        ? String(selectGpcHelperCountryCode.value || '+86').trim()
-        : String(latestState?.gopayHelperCountryCode || '+86').trim()),
-    gopayHelperPhoneNumber: window.GoPayUtils?.normalizeGoPayPhone
-      ? window.GoPayUtils.normalizeGoPayPhone(typeof inputGpcHelperPhone !== 'undefined' && inputGpcHelperPhone ? inputGpcHelperPhone.value : latestState?.gopayHelperPhoneNumber)
-      : (typeof inputGpcHelperPhone !== 'undefined' && inputGpcHelperPhone
-        ? String(inputGpcHelperPhone.value || '').trim()
-        : String(latestState?.gopayHelperPhoneNumber || '').trim()),
-    gopayHelperPin: window.GoPayUtils?.normalizeGoPayPin
-      ? window.GoPayUtils.normalizeGoPayPin(typeof inputGpcHelperPin !== 'undefined' && inputGpcHelperPin ? inputGpcHelperPin.value : latestState?.gopayHelperPin)
-      : (typeof inputGpcHelperPin !== 'undefined' && inputGpcHelperPin
-        ? String(inputGpcHelperPin.value || '')
-        : String(latestState?.gopayHelperPin || '')),
-    gopayHelperOtpChannel: selectedGpcOtpChannel,
-    gopayHelperLocalSmsHelperEnabled: selectedGpcLocalSmsHelperEnabled,
-    gopayHelperLocalSmsHelperUrl: normalizeGpcLocalSmsHelperBaseUrlSafe(
-      typeof inputGpcHelperLocalSmsUrl !== 'undefined' && inputGpcHelperLocalSmsUrl
-        ? inputGpcHelperLocalSmsUrl.value
-        : (latestState?.gopayHelperLocalSmsHelperUrl || '')
-    ),
+    gpcBaseUrl: window.GoPayUtils?.normalizeGpcBaseUrl
+      ? window.GoPayUtils.normalizeGpcBaseUrl(defaultGpcBaseUrl)
+      : String(defaultGpcBaseUrl).trim().replace(/\/+$/g, ''),
+    gpcCardKey: typeof inputGpcCardKey !== 'undefined' && inputGpcCardKey
+      ? normalizeGpcCardKeyInput(inputGpcCardKey.value || '')
+      : normalizeGpcCardKeyInput(latestState?.gpcCardKey || ''),
     ...(accountContributionEnabled ? {} : {
       customPassword: inputPassword.value,
     }),
@@ -10494,32 +10255,11 @@ function updatePlusModeUI() {
     || 'cpa'
   );
   const method = enabled ? getSelectedPlusPaymentMethod() : defaultMethod;
-  const gpcPhoneMode = normalizeGpcHelperPhoneModeValue(
-    typeof selectGpcHelperPhoneMode !== 'undefined' && selectGpcHelperPhoneMode
-      ? selectGpcHelperPhoneMode.value
-      : (latestState?.gopayHelperPhoneMode || 'manual')
-  );
-  const gpcAutoModeDenied = isGpcAutoModePermissionDenied(latestState);
-  const isGpcAutoMode = gpcPhoneMode === GPC_HELPER_PHONE_MODE_AUTO;
-  const gpcAutoModeBlocked = isGpcAutoMode && gpcAutoModeDenied;
-  const gpcOtpChannel = normalizeGpcOtpChannelValue(
-    typeof selectGpcHelperOtpChannel !== 'undefined' && selectGpcHelperOtpChannel
-      ? selectGpcHelperOtpChannel.value
-      : (latestState?.gopayHelperOtpChannel || 'whatsapp')
-  );
-  const localSmsEnabled = Boolean(
-    typeof inputGpcHelperLocalSmsEnabled !== 'undefined' && inputGpcHelperLocalSmsEnabled
-      ? inputGpcHelperLocalSmsEnabled.checked
-      : latestState?.gopayHelperLocalSmsHelperEnabled
-  );
   const selectedMethod = typeof selectPlusPaymentMethod !== 'undefined' && selectPlusPaymentMethod?.value
     ? normalizePlusPaymentMethod(selectPlusPaymentMethod.value)
     : method;
   const hostedRowsVisible = enabled && selectedMethod === paypalHostedValue;
   const gpcRowsVisible = enabled && selectedMethod === gpcValue;
-  const canShowGpcModeSelector = gpcRowsVisible;
-  const localSmsControlsVisible = gpcRowsVisible && !isGpcAutoMode;
-  const effectiveLocalSmsEnabled = !isGpcAutoMode && localSmsEnabled;
   if (typeof rowPlusMode !== 'undefined' && rowPlusMode) {
     rowPlusMode.style.display = supportsPlusMode ? '' : 'none';
   }
@@ -10531,7 +10271,7 @@ function updatePlusModeUI() {
   }
   if (typeof plusPaymentMethodCaption !== 'undefined' && plusPaymentMethodCaption) {
     plusPaymentMethodCaption.textContent = method === gpcValue
-      ? `GPC ${isGpcAutoMode ? '自动' : '手动'}订阅链路`
+      ? 'GPC 网页充值链路'
       : method === gopayValue
       ? 'GoPay 印尼订阅链路'
       : method === noneValue
@@ -10539,9 +10279,6 @@ function updatePlusModeUI() {
       : method === paypalHostedValue
       ? 'PayPal 无卡直绑链路'
       : 'PayPal 订阅链路';
-  }
-  if (typeof plusPaymentMethodCaption !== 'undefined' && plusPaymentMethodCaption && method === gpcValue && gpcAutoModeBlocked) {
-    plusPaymentMethodCaption.textContent = 'GPC 自动订阅链路（需手动切换）';
   }
   [
     typeof rowPlusPaymentMethod !== 'undefined' ? rowPlusPaymentMethod : null,
@@ -10646,43 +10383,8 @@ function updatePlusModeUI() {
     }
     row.style.display = hostedRowsVisible ? '' : 'none';
   });
-  [
-    typeof rowGpcHelperApi !== 'undefined' ? rowGpcHelperApi : null,
-    typeof rowGpcHelperCardKey !== 'undefined' ? rowGpcHelperCardKey : null,
-  ].forEach((row) => {
-    if (!row) {
-      return;
-    }
-    row.style.display = gpcRowsVisible ? '' : 'none';
-  });
-  if (typeof rowGpcHelperPhoneMode !== 'undefined' && rowGpcHelperPhoneMode) {
-    rowGpcHelperPhoneMode.style.display = canShowGpcModeSelector ? '' : 'none';
-  }
-  if (typeof selectGpcHelperPhoneMode !== 'undefined' && selectGpcHelperPhoneMode) {
-    selectGpcHelperPhoneMode.value = gpcPhoneMode;
-  }
-  [
-    typeof rowGpcHelperCountryCode !== 'undefined' ? rowGpcHelperCountryCode : null,
-    typeof rowGpcHelperPhone !== 'undefined' ? rowGpcHelperPhone : null,
-    typeof rowGpcHelperOtpChannel !== 'undefined' ? rowGpcHelperOtpChannel : null,
-    typeof rowGpcHelperPin !== 'undefined' ? rowGpcHelperPin : null,
-  ].forEach((row) => {
-    if (!row) {
-      return;
-    }
-    row.style.display = gpcRowsVisible && !isGpcAutoMode ? '' : 'none';
-  });
-  if (typeof selectGpcHelperOtpChannel !== 'undefined' && selectGpcHelperOtpChannel) {
-    selectGpcHelperOtpChannel.value = gpcOtpChannel;
-  }
-  if (typeof inputGpcHelperLocalSmsEnabled !== 'undefined' && inputGpcHelperLocalSmsEnabled) {
-    inputGpcHelperLocalSmsEnabled.checked = effectiveLocalSmsEnabled;
-  }
-  if (typeof rowGpcHelperLocalSmsEnabled !== 'undefined' && rowGpcHelperLocalSmsEnabled) {
-    rowGpcHelperLocalSmsEnabled.style.display = localSmsControlsVisible ? '' : 'none';
-  }
-  if (typeof rowGpcHelperLocalSmsUrl !== 'undefined' && rowGpcHelperLocalSmsUrl) {
-    rowGpcHelperLocalSmsUrl.style.display = localSmsControlsVisible && effectiveLocalSmsEnabled ? '' : 'none';
+  if (typeof rowGpcCardKey !== 'undefined' && rowGpcCardKey) {
+    rowGpcCardKey.style.display = gpcRowsVisible ? '' : 'none';
   }
   if (typeof btnGpcCardKeyPurchase !== 'undefined' && btnGpcCardKeyPurchase) {
     btnGpcCardKeyPurchase.style.display = gpcRowsVisible ? '' : 'none';
@@ -10936,83 +10638,122 @@ function isGpcHelperCheckoutSelected() {
   return plusEnabled && getSelectedPlusPaymentMethod() === gpcValue;
 }
 
-function getSelectedGpcHelperPhoneMode() {
-  return normalizeGpcHelperPhoneModeValue(
-    typeof selectGpcHelperPhoneMode !== 'undefined' && selectGpcHelperPhoneMode
-      ? selectGpcHelperPhoneMode.value
-      : (latestState?.gopayHelperPhoneMode || GPC_HELPER_PHONE_MODE_MANUAL)
-  );
+function normalizeGpcCardKeyInput(value = '') {
+  if (window.GoPayUtils?.normalizeGpcCardKey) {
+    return window.GoPayUtils.normalizeGpcCardKey(value);
+  }
+  return String(value || '').trim().toUpperCase();
+}
+
+function isGpcCardKeyInputFormat(value = '') {
+  if (window.GoPayUtils?.isGpcCardKeyFormat) {
+    return window.GoPayUtils.isGpcCardKeyFormat(value);
+  }
+  return /^GPC-[A-F0-9]{8}-[A-F0-9]{8}-[A-F0-9]{8}$/.test(normalizeGpcCardKeyInput(value));
+}
+
+function setGpcCardKeyStatus(message = '', tone = '') {
+  if (!displayGpcCardKeyStatus) {
+    return;
+  }
+  displayGpcCardKeyStatus.textContent = message || '等待输入';
+  displayGpcCardKeyStatus.dataset.tone = tone || '';
+}
+
+function formatGpcCardKeyBalanceStatus(result = {}) {
+  const remaining = result?.remainingUses;
+  if (remaining !== undefined && remaining !== null && String(remaining).trim() !== '') {
+    return `剩余 ${remaining} 次`;
+  }
+  return String(result?.balance || '').trim() || '卡密可用';
+}
+
+async function refreshGpcCardKeyStatus(options = {}) {
+  const rawCardKey = String(inputGpcCardKey?.value || '').trim();
+  const cardKey = normalizeGpcCardKeyInput(rawCardKey);
+  if (!rawCardKey) {
+    setGpcCardKeyStatus('等待输入', '');
+    return null;
+  }
+  if (inputGpcCardKey && inputGpcCardKey.value !== cardKey) {
+    inputGpcCardKey.value = cardKey;
+  }
+  if (!isGpcCardKeyInputFormat(cardKey)) {
+    setGpcCardKeyStatus('格式应为 GPC-XXXXXXXX-XXXXXXXX-XXXXXXXX', 'error');
+    return null;
+  }
+
+  const requestId = (refreshGpcCardKeyStatus.requestId || 0) + 1;
+  refreshGpcCardKeyStatus.requestId = requestId;
+  setGpcCardKeyStatus('正在检测...', 'running');
+  try {
+    const response = await sendSidepanelMessage({
+      type: 'REFRESH_GPC_CARD_BALANCE',
+      payload: {
+        gpcCardKey: cardKey,
+        reason: options.reason || 'input',
+      },
+    });
+    if (requestId !== refreshGpcCardKeyStatus.requestId) {
+      return response;
+    }
+    if (response?.error) {
+      throw new Error(response.error);
+    }
+    setGpcCardKeyStatus(formatGpcCardKeyBalanceStatus(response), 'ok');
+    syncLatestState({
+      gpcCardKey: cardKey,
+      gpcBalance: response?.balance || latestState?.gpcBalance || '',
+      gpcBalancePayload: response?.data || latestState?.gpcBalancePayload || null,
+      gpcBalanceUpdatedAt: response?.updatedAt || Date.now(),
+      gpcBalanceError: '',
+      gpcRemainingUses: Number(response?.remainingUses) || 0,
+      gpcCardStatus: String(response?.cardStatus || '').trim(),
+    });
+    return response;
+  } catch (error) {
+    if (requestId === refreshGpcCardKeyStatus.requestId) {
+      setGpcCardKeyStatus(error?.message || '卡密检测失败', 'error');
+    }
+    return null;
+  }
+}
+
+function scheduleGpcCardKeyStatusRefresh() {
+  clearTimeout(scheduleGpcCardKeyStatusRefresh.timer);
+  scheduleGpcCardKeyStatusRefresh.timer = setTimeout(() => {
+    refreshGpcCardKeyStatus({ reason: 'input' }).catch(() => { });
+  }, 1000);
 }
 
 async function showGpcStartBlockedDialog(message) {
   await openConfirmModal({
-    title: 'GPC 任务无法开启',
+    title: 'GPC 页面流程无法开启',
     message,
     confirmLabel: '知道了',
   });
 }
 
-async function refreshGpcBalanceForStart() {
-  const response = await chrome.runtime.sendMessage({
-    type: 'REFRESH_GPC_CARD_BALANCE',
-    source: 'sidepanel',
-    payload: {
-      gopayHelperApiUrl: inputGpcHelperApi?.value || DEFAULT_GPC_HELPER_API_URL,
-      gopayHelperApiKey: inputGpcHelperCardKey?.value || latestState?.gopayHelperApiKey || '',
-      reason: 'before_start',
-    },
-  });
-  if (response?.error) {
-    throw new Error(response.error);
-  }
-  const nextState = {
-    gopayHelperBalance: response?.balance || latestState?.gopayHelperBalance || '',
-    gopayHelperBalancePayload: response?.data || response?.payload?.data || response?.payload || latestState?.gopayHelperBalancePayload || null,
-    gopayHelperBalanceUpdatedAt: response?.updatedAt || Date.now(),
-    gopayHelperBalanceError: '',
-    gopayHelperRemainingUses: getGpcBalanceRemainingUsesFromResponse(response) ?? 0,
-    gopayHelperAutoModeEnabled: getGpcAutoModeEnabledFromResponse(response),
-    gopayHelperApiKeyStatus: response?.apiKeyStatus || response?.data?.status || response?.payload?.data?.status || response?.payload?.status || '',
-  };
-  syncLatestState(nextState);
-  if (displayGpcHelperBalance && nextState.gopayHelperBalance) {
-    displayGpcHelperBalance.textContent = nextState.gopayHelperBalance;
-  }
-  updatePlusModeUI();
-  return nextState;
-}
-
-async function ensureGpcApiKeyReadyForStart(options = {}) {
+async function ensureGpcCardKeyReadyForStart(options = {}) {
   if (!isGpcHelperCheckoutSelected()) {
     return true;
   }
-  const selectedMode = getSelectedGpcHelperPhoneMode();
-  let balanceState;
-  try {
-    balanceState = await refreshGpcBalanceForStart();
-  } catch (error) {
-    await showGpcStartBlockedDialog(`API Key 余额校验失败：${error?.message || '未知错误'}。请先确认 API Key 是否正确。`);
+  const cardKey = normalizeGpcCardKeyInput(inputGpcCardKey?.value || latestState?.gpcCardKey || '');
+  if (!cardKey) {
+    await showGpcStartBlockedDialog('请先填写 GPC 卡密。');
     return false;
   }
-
-  const remainingUses = normalizeGpcRemainingUsesValue(balanceState.gopayHelperRemainingUses);
-  const apiKeyStatus = String(balanceState.gopayHelperApiKeyStatus || '').trim().toLowerCase();
-  if (apiKeyStatus && apiKeyStatus !== 'active') {
-    await showGpcStartBlockedDialog(`当前 GPC API Key 状态为 ${balanceState.gopayHelperApiKeyStatus}，不能开启任务。`);
+  if (!isGpcCardKeyInputFormat(cardKey)) {
+    await showGpcStartBlockedDialog('GPC 卡密格式不正确，应类似 GPC-6C9F1A32-45734795-914E6F00。');
+    setGpcCardKeyStatus('格式应为 GPC-XXXXXXXX-XXXXXXXX-XXXXXXXX', 'error');
     return false;
   }
-  if (remainingUses !== null && remainingUses <= 0) {
-    await showGpcStartBlockedDialog('当前 GPC API Key 剩余次数不足，不能开启任务。');
-    return false;
-  }
-
-  if (selectedMode === GPC_HELPER_PHONE_MODE_AUTO && isGpcAutoModePermissionDenied(balanceState)) {
-    await showGpcStartBlockedDialog('当前 GPC API Key 未开通自动模式，已保留你的当前选择。如需继续，请由你手动切换到手动模式后再开启任务。');
-    return false;
+  if (inputGpcCardKey) {
+    inputGpcCardKey.value = cardKey;
   }
 
   if (options?.notify) {
-    showToast('GPC API Key 余额和权限校验通过。', 'success', 1800);
+    showToast('GPC 卡密已填写。', 'success', 1800);
   }
   return true;
 }
@@ -11064,36 +10805,6 @@ async function openPlusManualConfirmationDialog(options = {}) {
   const continuationActionLabel = useSub2ApiSessionImport
     ? '导入当前 ChatGPT 会话到 SUB2API'
     : 'OAuth 登录';
-  if (method === 'gopay-otp') {
-    if (!sharedFormDialog?.open) {
-      return null;
-    }
-    const result = await sharedFormDialog.open({
-      title: String(options.title || '').trim() || 'GPC OTP 验证',
-      message: String(options.message || '').trim() || '请在WhatsApp里面获取验证码（耐心等待三十秒左右）',
-      fields: [
-        {
-          key: 'otp',
-          label: 'OTP',
-          type: 'text',
-          placeholder: '请输入 OTP 验证码',
-          inputMode: 'numeric',
-          autocomplete: 'one-time-code',
-          required: true,
-          requiredMessage: '请输入 OTP 验证码。',
-          normalize: (value) => String(value || '').trim().replace(/[^\d]/g, ''),
-          validate: (value) => {
-            const normalized = String(value || '').trim().replace(/[^\d]/g, '');
-            if (!normalized) return '请输入 OTP 验证码。';
-            if (!/^\d{6}$/.test(normalized)) return 'OTP 必须是 6 位数字，请检查。';
-            return '';
-          },
-        },
-      ],
-      confirmLabel: '提交 OTP',
-    });
-    return result ? { action: 'confirm', otp: String(result.otp || '').trim().replace(/[^\d]/g, '') } : { action: 'cancel' };
-  }
   const title = String(options.title || '').trim() || (method === gopayValue ? 'GoPay 订阅确认' : '手动确认');
   const message = String(options.message || '').trim()
     || (method === gopayValue
@@ -11189,7 +10900,7 @@ async function syncPlusManualConfirmationDialog() {
       return;
     }
 
-    const confirmed = choice === 'confirm' || choice?.action === 'confirm';
+    const confirmed = choice === 'confirm';
     const response = await chrome.runtime.sendMessage({
       type: 'RESOLVE_PLUS_MANUAL_CONFIRMATION',
       source: 'sidepanel',
@@ -11197,28 +10908,15 @@ async function syncPlusManualConfirmationDialog() {
         step,
         requestId,
         confirmed,
-        ...(choice?.otp ? { otp: choice.otp } : {}),
       },
     });
     if (response?.error) {
       throw new Error(response.error);
     }
     if (confirmed) {
-      showToast(
-        method === 'gopay-otp'
-          ? 'GPC OTP 已提交，正在继续验证...'
-          : (method === gopayValue ? `GoPay 订阅已确认，正在继续${continuationActionLabel}...` : '已确认，流程继续执行中...'),
-        'info',
-        2200
-      );
+      showToast(method === gopayValue ? `GoPay 订阅已确认，正在继续${continuationActionLabel}...` : '已确认，流程继续执行中...', 'info', 2200);
     } else {
-      showToast(
-        method === 'gopay-otp'
-          ? '已取消 GPC OTP 输入。'
-          : (method === gopayValue ? '已取消 GoPay 订阅等待。' : '已取消当前手动确认。'),
-        'warn',
-        2200
-      );
+      showToast(method === gopayValue ? '已取消 GoPay 订阅等待。' : '已取消当前手动确认。', 'warn', 2200);
     }
   } catch (error) {
     showToast(error?.message || String(error || '未知错误'), 'error');
@@ -11242,39 +10940,6 @@ async function openPlusManualConfirmationDialog(options = {}) {
   const method = String(options.method || '').trim().toLowerCase();
   const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
   const continuationActionLabel = resolvePlusManualContinuationActionLabelFromState(latestState);
-  if (method === 'gopay-otp') {
-    if (!sharedFormDialog?.open) {
-      return null;
-    }
-    const result = await sharedFormDialog.open({
-      title: String(options.title || '').trim() || 'GPC OTP 验证',
-      message: String(options.message || '').trim() || '请在WhatsApp里面获取验证码（耐心等待三十秒左右）',
-      fields: [
-        {
-          key: 'otp',
-          label: 'OTP',
-          type: 'text',
-          placeholder: '请输入 OTP 验证码',
-          inputMode: 'numeric',
-          autocomplete: 'one-time-code',
-          required: true,
-          requiredMessage: '请输入 OTP 验证码。',
-          normalize: (value) => String(value || '').trim().replace(/[^\d]/g, ''),
-          validate: (value) => {
-            const normalized = String(value || '').trim().replace(/[^\d]/g, '');
-            if (!normalized) return '请输入 OTP 验证码。';
-            if (!/^\d{6}$/.test(normalized)) return 'OTP 必须是 6 位数字，请检查。';
-            return '';
-          },
-        },
-      ],
-      confirmLabel: '提交 OTP',
-    });
-    return result
-      ? { action: 'confirm', otp: String(result.otp || '').trim().replace(/[^\d]/g, '') }
-      : { action: 'cancel' };
-  }
-
   const title = String(options.title || '').trim() || (method === gopayValue ? 'GoPay subscription confirmation' : 'Manual confirmation');
   const message = String(options.message || '').trim()
     || (method === gopayValue
@@ -11803,54 +11468,19 @@ function applySettingsState(state) {
     selectPlusAccountAccessStrategy.dataset.requestedValue = currentPlusAccountAccessStrategy;
     selectPlusAccountAccessStrategy.value = normalizePlusAccountAccessStrategyUiValue(currentPlusAccountAccessStrategy);
   }
-  if (typeof inputGpcHelperApi !== 'undefined' && inputGpcHelperApi) {
-    const defaultGpcHelperApiUrl = typeof DEFAULT_GPC_HELPER_API_URL !== 'undefined'
-      ? DEFAULT_GPC_HELPER_API_URL
-      : 'https://gpc.qlhazycoder.top';
-    inputGpcHelperApi.value = `${defaultGpcHelperApiUrl.replace(/\/+$/g, '')}/`;
-  }
-  if (typeof inputGpcHelperCardKey !== 'undefined' && inputGpcHelperCardKey) {
-    inputGpcHelperCardKey.value = state?.gopayHelperApiKey || state?.gopayHelperCardKey || '';
-  }
-  if (typeof selectGpcHelperPhoneMode !== 'undefined' && selectGpcHelperPhoneMode) {
-    selectGpcHelperPhoneMode.value = normalizeGpcHelperPhoneModeValue(state?.gopayHelperPhoneMode || 'manual');
-  }
-  if (typeof selectGpcHelperCountryCode !== 'undefined' && selectGpcHelperCountryCode) {
-    const normalizedCountryCode = window.GoPayUtils?.normalizeGoPayCountryCode
-      ? window.GoPayUtils.normalizeGoPayCountryCode(state?.gopayHelperCountryCode)
-      : String(state?.gopayHelperCountryCode || '+86').trim();
-    const hasOption = Array.from(selectGpcHelperCountryCode.options || [])
-      .some((option) => option.value === normalizedCountryCode);
-    if (!hasOption && normalizedCountryCode) {
-      const option = document.createElement('option');
-      option.value = normalizedCountryCode;
-      option.textContent = `自定义 ${normalizedCountryCode}`;
-      selectGpcHelperCountryCode.appendChild(option);
+  if (typeof inputGpcCardKey !== 'undefined' && inputGpcCardKey) {
+    inputGpcCardKey.value = state?.gpcCardKey || '';
+    if (state?.gpcBalanceError) {
+      setGpcCardKeyStatus(state.gpcBalanceError, 'error');
+    } else if (state?.gpcBalance || state?.gpcRemainingUses !== undefined) {
+      setGpcCardKeyStatus(formatGpcCardKeyBalanceStatus({
+        balance: state?.gpcBalance,
+        remainingUses: state?.gpcRemainingUses,
+        cardStatus: state?.gpcCardStatus,
+      }), 'ok');
+    } else {
+      setGpcCardKeyStatus(inputGpcCardKey.value ? '等待检测' : '等待输入', '');
     }
-    selectGpcHelperCountryCode.value = normalizedCountryCode || '+86';
-  }
-  if (typeof inputGpcHelperPhone !== 'undefined' && inputGpcHelperPhone) {
-    inputGpcHelperPhone.value = state?.gopayHelperPhoneNumber || '';
-  }
-  if (typeof selectGpcHelperOtpChannel !== 'undefined' && selectGpcHelperOtpChannel) {
-    selectGpcHelperOtpChannel.value = normalizeGpcOtpChannelValue(state?.gopayHelperOtpChannel || 'whatsapp');
-  }
-  if (typeof inputGpcHelperLocalSmsEnabled !== 'undefined' && inputGpcHelperLocalSmsEnabled) {
-    inputGpcHelperLocalSmsEnabled.checked = Boolean(state?.gopayHelperLocalSmsHelperEnabled);
-  }
-  if (typeof inputGpcHelperLocalSmsUrl !== 'undefined' && inputGpcHelperLocalSmsUrl) {
-    inputGpcHelperLocalSmsUrl.value = normalizeGpcLocalSmsHelperBaseUrlValue(state?.gopayHelperLocalSmsHelperUrl || '');
-  }
-  if (typeof inputGpcHelperPin !== 'undefined' && inputGpcHelperPin) {
-    inputGpcHelperPin.value = state?.gopayHelperPin || '';
-  }
-  if (typeof displayGpcHelperBalance !== 'undefined' && displayGpcHelperBalance) {
-    const balanceText = String(state?.gopayHelperBalance || '').trim();
-    const balanceError = String(state?.gopayHelperBalanceError || '').trim();
-    const balanceAt = Number(state?.gopayHelperBalanceUpdatedAt) || 0;
-    displayGpcHelperBalance.textContent = balanceError
-      ? `余额查询失败：${balanceError}`
-      : (balanceText || (balanceAt ? '余额已更新' : '余额未获取'));
   }
   if (typeof selectGoPayCountryCode !== 'undefined' && selectGoPayCountryCode) {
     const normalizedGoPayCountryCode = window.GoPayUtils?.normalizeGoPayCountryCode
@@ -15601,7 +15231,7 @@ stepsList?.addEventListener('click', async (event) => {
     }
     await persistCurrentSettingsForAction();
     const gpcCreateStep = getStepIdByKeyForCurrentMode('plus-checkout-create') || 6;
-    if (step === gpcCreateStep && !(await ensureGpcApiKeyReadyForStart())) {
+    if (step === gpcCreateStep && !(await ensureGpcCardKeyReadyForStart())) {
       return;
     }
     const shouldPersistSharedPassword = nodeId === 'fill-password'
@@ -15899,7 +15529,7 @@ async function startAutoRunFromCurrentSettings() {
     clearPendingAutoRunStartRunCount();
     throw new Error(autoRunStartValidation.errors?.[0]?.message || '当前设置不支持启动自动流程。');
   }
-  if (!(await ensureGpcApiKeyReadyForStart())) {
+  if (!(await ensureGpcCardKeyReadyForStart())) {
     clearPendingAutoRunStartRunCount();
     return false;
   }
@@ -16231,62 +15861,11 @@ btnGpcCardKeyPurchase?.addEventListener('click', () => {
   openExternalUrl('https://pay.ldxp.cn/shop/gpc');
 });
 
-btnGpcHelperConvertApiKey?.addEventListener('click', () => {
-  openExternalUrl(GPC_HELPER_PORTAL_URL);
-});
-
 btnOpenTargetRepository?.addEventListener('click', () => {
   const repositoryUrl = btnOpenTargetRepository.dataset.repositoryUrl
     || getTargetRepositoryUrl(getSelectedFlowId(), getSelectedTargetId());
   if (repositoryUrl) {
     openExternalUrl(repositoryUrl);
-  }
-});
-
-btnGpcHelperBalance?.addEventListener('click', async () => {
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: 'REFRESH_GPC_CARD_BALANCE',
-      source: 'sidepanel',
-      payload: {
-        gopayHelperApiUrl: inputGpcHelperApi?.value || DEFAULT_GPC_HELPER_API_URL,
-        gopayHelperApiKey: inputGpcHelperCardKey?.value || '',
-        gopayHelperCountryCode: selectGpcHelperCountryCode?.value || '+86',
-        reason: 'manual',
-      },
-    });
-    if (response?.error) {
-      throw new Error(response.error);
-    }
-    if (displayGpcHelperBalance) {
-      displayGpcHelperBalance.textContent = response?.balance || '余额已更新';
-    }
-    const nextState = {
-      gopayHelperBalance: response?.balance || latestState?.gopayHelperBalance || '',
-      gopayHelperBalancePayload: response?.data || response?.payload?.data || response?.payload || latestState?.gopayHelperBalancePayload || null,
-      gopayHelperBalanceUpdatedAt: response?.updatedAt || Date.now(),
-      gopayHelperBalanceError: '',
-      gopayHelperRemainingUses: getGpcBalanceRemainingUsesFromResponse(response) ?? 0,
-      gopayHelperAutoModeEnabled: getGpcAutoModeEnabledFromResponse(response),
-      gopayHelperApiKeyStatus: response?.apiKeyStatus || response?.data?.status || response?.payload?.data?.status || response?.payload?.status || '',
-    };
-    const nextAutoModePermission = getGpcAutoModePermissionFromPayload(nextState.gopayHelperBalancePayload);
-    const nextAutoModeDenied = nextAutoModePermission === false;
-    const nextAutoModeConfirmed = nextAutoModePermission === true || nextState.gopayHelperAutoModeEnabled;
-    const selectedModeBeforeBalanceState = getSelectedGpcHelperPhoneMode();
-    syncLatestState(nextState);
-    if (nextAutoModeDenied && selectedModeBeforeBalanceState === GPC_HELPER_PHONE_MODE_AUTO) {
-      showToast('当前 API Key 未开通自动模式，已保留当前选择；如需继续请手动切换到手动模式。', 'warn');
-    } else if (nextAutoModeDenied) {
-      showToast('GPC 余额已更新，当前 API Key 只能使用手动模式。', 'success');
-    } else if (nextAutoModeConfirmed) {
-      showToast('GPC 余额已更新，自动模式可用。', 'success');
-    } else {
-      showToast('GPC 余额已更新，当前接口未返回自动模式权限，已保留所选模式。', 'success');
-    }
-    updatePlusModeUI();
-  } catch (error) {
-    showToast(error?.message || '查询 GPC 余额失败。', 'error');
   }
 });
 
@@ -16353,15 +15932,6 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
 });
 
 [
-  inputGpcHelperApi,
-  inputGpcHelperCardKey,
-  selectGpcHelperPhoneMode,
-  selectGpcHelperCountryCode,
-  inputGpcHelperPhone,
-  selectGpcHelperOtpChannel,
-  inputGpcHelperLocalSmsEnabled,
-  inputGpcHelperLocalSmsUrl,
-  inputGpcHelperPin,
   selectGoPayCountryCode,
   inputGoPayPhone,
   inputGoPayOtp,
@@ -16375,15 +15945,35 @@ selectPlusPaymentMethod?.addEventListener('change', () => {
     scheduleSettingsAutoSave();
   });
   input?.addEventListener('change', () => {
-    if (input === selectGpcHelperPhoneMode || input === selectGpcHelperOtpChannel || input === inputGpcHelperLocalSmsEnabled) {
-      updatePlusModeUI();
-    }
     markSettingsDirty(true);
     saveSettings({ silent: true }).catch(() => { });
   });
   input?.addEventListener('blur', () => {
     saveSettings({ silent: true }).catch(() => { });
   });
+});
+
+inputGpcCardKey?.addEventListener('input', () => {
+  markSettingsDirty(true);
+  scheduleSettingsAutoSave();
+  scheduleGpcCardKeyStatusRefresh();
+});
+inputGpcCardKey?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+  refreshGpcCardKeyStatus({ reason: 'change' }).catch(() => { });
+});
+inputGpcCardKey?.addEventListener('blur', () => {
+  saveSettings({ silent: true }).catch(() => { });
+  refreshGpcCardKeyStatus({ reason: 'blur' }).catch(() => { });
+});
+btnGpcCardKeyQuery?.addEventListener('click', async () => {
+  btnGpcCardKeyQuery.disabled = true;
+  try {
+    await refreshGpcCardKeyStatus({ reason: 'manual' });
+  } finally {
+    btnGpcCardKeyQuery.disabled = false;
+  }
 });
 
 selectMailProvider.addEventListener('change', async () => {
@@ -18791,6 +18381,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.payload.plusPaymentMethod !== undefined && selectPlusPaymentMethod) {
         selectPlusPaymentMethod.value = normalizePlusPaymentMethod(message.payload.plusPaymentMethod);
       }
+      if (message.payload.gpcCardKey !== undefined && inputGpcCardKey) {
+        inputGpcCardKey.value = message.payload.gpcCardKey || '';
+      }
+      if (
+        message.payload.gpcBalance !== undefined
+        || message.payload.gpcRemainingUses !== undefined
+        || message.payload.gpcCardStatus !== undefined
+        || message.payload.gpcBalanceError !== undefined
+      ) {
+        if (message.payload.gpcBalanceError) {
+          setGpcCardKeyStatus(message.payload.gpcBalanceError, 'error');
+        } else {
+          setGpcCardKeyStatus(formatGpcCardKeyBalanceStatus({
+            balance: latestState?.gpcBalance,
+            remainingUses: latestState?.gpcRemainingUses,
+            cardStatus: latestState?.gpcCardStatus,
+          }), 'ok');
+        }
+      }
       if (message.payload.plusAccountAccessStrategy !== undefined && selectPlusAccountAccessStrategy) {
         currentPlusAccountAccessStrategy = normalizePlusAccountAccessStrategy(message.payload.plusAccountAccessStrategy);
         selectPlusAccountAccessStrategy.dataset.requestedValue = currentPlusAccountAccessStrategy;
@@ -18798,35 +18407,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           selectPlusAccountAccessStrategy.value = normalizePlusAccountAccessStrategyUiValue(currentPlusAccountAccessStrategy);
         }
       }
-      if (message.payload.gopayHelperPhoneMode !== undefined && selectGpcHelperPhoneMode) {
-        selectGpcHelperPhoneMode.value = normalizeGpcHelperPhoneModeValue(message.payload.gopayHelperPhoneMode);
-      }
-      if (message.payload.gopayHelperOtpChannel !== undefined && selectGpcHelperOtpChannel) {
-        selectGpcHelperOtpChannel.value = normalizeGpcOtpChannelValue(message.payload.gopayHelperOtpChannel);
-      }
-      if (message.payload.gopayHelperLocalSmsHelperEnabled !== undefined && inputGpcHelperLocalSmsEnabled) {
-        inputGpcHelperLocalSmsEnabled.checked = Boolean(message.payload.gopayHelperLocalSmsHelperEnabled);
-      }
-      if (message.payload.gopayHelperLocalSmsHelperUrl !== undefined && inputGpcHelperLocalSmsUrl) {
-        inputGpcHelperLocalSmsUrl.value = normalizeGpcLocalSmsHelperBaseUrlValue(message.payload.gopayHelperLocalSmsHelperUrl);
-      }
-      if (message.payload.gopayHelperBalance !== undefined || message.payload.gopayHelperBalanceError !== undefined) {
-        if (typeof displayGpcHelperBalance !== 'undefined' && displayGpcHelperBalance) {
-          const balanceText = String(message.payload.gopayHelperBalance ?? latestState?.gopayHelperBalance ?? '').trim();
-          const balanceError = String(message.payload.gopayHelperBalanceError ?? latestState?.gopayHelperBalanceError ?? '').trim();
-          displayGpcHelperBalance.textContent = balanceError
-            ? `余额查询失败：${balanceError}`
-            : (balanceText || '余额已更新');
-        }
-      }
       if (
         message.payload.plusModeEnabled !== undefined
         || message.payload.plusPaymentMethod !== undefined
         || message.payload.plusAccountAccessStrategy !== undefined
-        || message.payload.gopayHelperPhoneMode !== undefined
-        || message.payload.gopayHelperAutoModeEnabled !== undefined
-        || message.payload.gopayHelperOtpChannel !== undefined
-        || message.payload.gopayHelperLocalSmsHelperEnabled !== undefined
       ) {
         const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
           ? resolveStepDefinitionCapabilityState(latestState, {

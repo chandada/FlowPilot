@@ -60,8 +60,6 @@ const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
 const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = 'oauth';
-const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
 ${extractFunction('normalizePlusAccountAccessStrategy')}
 ${extractFunction('getRequestedPlusAccountAccessStrategy')}
 ${extractFunction('updatePlusModeUI')}
@@ -71,15 +69,6 @@ function normalizePlusPaymentMethod(value = '') {
 }
 function getSelectedPlusPaymentMethod() {
   return normalizePlusPaymentMethod(selectPlusPaymentMethod.value || latestState?.plusPaymentMethod || currentPlusPaymentMethod || 'paypal');
-}
-function normalizeGpcHelperPhoneModeValue(value = '') {
-  return String(value || '').trim().toLowerCase() === 'auto' ? 'auto' : 'manual';
-}
-function normalizeGpcOtpChannelValue(value = '') {
-  return String(value || '').trim().toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
-}
-function isGpcAutoModePermissionDenied() {
-  return false;
 }
 function getSelectedPanelMode() {
   return latestState?.targetId || 'cpa';

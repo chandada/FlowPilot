@@ -752,7 +752,7 @@ test('auto-run restarts Plus checkout from step 6 when billing fails for non-fre
   assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新创建 Plus Checkout/.test(message)));
 });
 
-test('auto-run restarts GPC checkout from step 6 when step 7 task polling stalls', async () => {
+test('auto-run restarts GPC checkout from step 6 when step 7 page flow stalls', async () => {
   const plusGpcSteps = {
     6: { key: 'plus-checkout-create' },
     7: { key: 'plus-checkout-billing' },
@@ -765,7 +765,7 @@ test('auto-run restarts GPC checkout from step 6 when step 7 task polling stalls
     startStep: 6,
     failureStep: 7,
     failureBudget: 2,
-    failureMessage: 'GPC API 请求超时（>30 秒）：https://gpc.qlhazycoder.top/api/gp/tasks/task_stalled',
+    failureMessage: 'GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面等待超时，未检测到订阅完成。',
     stepDefinitions: plusGpcSteps,
     finalOAuthChainStartStep: 10,
     customState: {
@@ -785,7 +785,7 @@ test('auto-run restarts GPC checkout from step 6 when step 7 task polling stalls
     events.invalidations.map((entry) => entry.step),
     [5, 5]
   );
-  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新创建 GPC 任务/.test(message)));
+  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新准备 GPC 页面/.test(message)));
 });
 
 test('auto-run treats GPC account binding as recoverable step 6 restart', async () => {
@@ -801,7 +801,7 @@ test('auto-run treats GPC account binding as recoverable step 6 restart', async 
     startStep: 6,
     failureStep: 7,
     failureBudget: 1,
-    failureMessage: 'GPC_TASK_ENDED::GOPAY已经绑了订阅，需要手动解绑',
+    failureMessage: 'GPC_PAGE_FLOW_ENDED::GOPAY已经绑了订阅，需要手动解绑',
     stepDefinitions: plusGpcSteps,
     finalOAuthChainStartStep: 10,
     customState: {
@@ -817,7 +817,7 @@ test('auto-run treats GPC account binding as recoverable step 6 restart', async 
   assert.deepStrictEqual(events.invalidations.map((entry) => entry.step), [5]);
 });
 
-test('auto-run restarts GPC checkout from step 6 when accessToken cannot be read', async () => {
+test('auto-run restarts GPC checkout from step 6 when ChatGPT session cannot be read', async () => {
   const plusGpcSteps = {
     6: { key: 'plus-checkout-create' },
     7: { key: 'plus-checkout-billing' },
@@ -830,7 +830,7 @@ test('auto-run restarts GPC checkout from step 6 when accessToken cannot be read
     startStep: 6,
     failureStep: 6,
     failureBudget: 1,
-    failureMessage: '步骤 6：GPC 模式获取 accessToken 失败。',
+    failureMessage: '步骤 6：GPC 模式获取 ChatGPT session 失败。',
     stepDefinitions: plusGpcSteps,
     finalOAuthChainStartStep: 10,
     customState: {
@@ -844,10 +844,10 @@ test('auto-run restarts GPC checkout from step 6 when accessToken cannot be read
 
   assert.deepStrictEqual(events.steps, [6, 6, 7, 10, 11, 12, 13]);
   assert.deepStrictEqual(events.invalidations.map((entry) => entry.step), [5]);
-  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新创建 GPC 任务/.test(message)));
+  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新准备 GPC 页面/.test(message)));
 });
 
-test('auto-run restarts GPC checkout from step 6 when task status has no progress', async () => {
+test('auto-run restarts GPC checkout from step 6 when page returns without completion', async () => {
   const plusGpcSteps = {
     6: { key: 'plus-checkout-create' },
     7: { key: 'plus-checkout-billing' },
@@ -860,7 +860,7 @@ test('auto-run restarts GPC checkout from step 6 when task status has no progres
     startStep: 6,
     failureStep: 7,
     failureBudget: 1,
-    failureMessage: 'GPC_TASK_ENDED::GPC 任务状态超过 60 秒无进展（已创建），请重新创建任务。',
+    failureMessage: 'GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面已尝试启动 10 次仍未显示订阅完成。',
     stepDefinitions: plusGpcSteps,
     finalOAuthChainStartStep: 10,
     customState: {
@@ -874,7 +874,7 @@ test('auto-run restarts GPC checkout from step 6 when task status has no progres
 
   assert.deepStrictEqual(events.steps, [6, 7, 6, 7, 10, 11, 12, 13]);
   assert.deepStrictEqual(events.invalidations.map((entry) => entry.step), [5]);
-  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新创建 GPC 任务/.test(message)));
+  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新准备 GPC 页面/.test(message)));
 });
 
 test('auto-run keeps rebuilding GPC checkout beyond three failures', async () => {
@@ -890,7 +890,7 @@ test('auto-run keeps rebuilding GPC checkout beyond three failures', async () =>
     startStep: 6,
     failureStep: 7,
     failureBudget: 4,
-    failureMessage: 'GPC_TASK_ENDED::GPC task status stalled, recreate the task.',
+    failureMessage: 'GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面等待超时，未检测到订阅完成。',
     stepDefinitions: plusGpcSteps,
     finalOAuthChainStartStep: 10,
     customState: {
@@ -947,7 +947,7 @@ test('auto-run does not restart GPC checkout when account already has a ChatGPT 
     startStep: 6,
     failureStep: 7,
     failureBudget: 1,
-    failureMessage: 'GPC_TASK_ENDED::该账号已经开通过ChatGPT订阅套餐，不能重复订阅。（checkout_order）',
+    failureMessage: 'GPC_PAGE_FLOW_ENDED::该账号已经开通过ChatGPT订阅套餐，不能重复订阅。（checkout_order）',
     stepDefinitions: plusGpcSteps,
     finalOAuthChainStartStep: 10,
     customState: {
@@ -962,7 +962,7 @@ test('auto-run does not restart GPC checkout when account already has a ChatGPT 
   assert.ok(result?.error);
   assert.deepStrictEqual(result.events.steps, [6, 7]);
   assert.equal(result.events.invalidations.length, 0);
-  assert.ok(!result.events.logs.some(({ message }) => /回到步骤 6 重新创建 GPC 任务/.test(message)));
+  assert.ok(!result.events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新准备 GPC 页面/.test(message)));
 });
 
 test('auto-run does not reroute SUB2API session import failures into OAuth restarts', async () => {

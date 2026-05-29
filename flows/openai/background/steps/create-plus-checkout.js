@@ -15,9 +15,8 @@
   const LOCAL_CHECKOUT_PROXY_SETTINGS_SCOPE = 'regular';
   const LOCAL_CHECKOUT_PROXY_TIMEOUT_MS = 1200;
   const LOCAL_CHECKOUT_PROXY_SETTLE_MS = 350;
-  const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
-  const GPC_HELPER_PHONE_MODE_AUTO = 'auto';
-  const GPC_HELPER_PHONE_MODE_MANUAL = 'manual';
+  const DEFAULT_GPC_BASE_URL = 'https://gpc.qlhazycoder.top';
+  const GPC_PORTAL_URL = 'https://gpc.qlhazycoder.top/';
   const HOSTED_CHECKOUT_ADDRESS_ENDPOINT = 'https://www.meiguodizhi.com/api/v1/dz';
   const HOSTED_CHECKOUT_SUCCESS_URL_PATTERN = /^https:\/\/(?:chatgpt\.com|www\.chatgpt\.com|chat\.openai\.com)\/(?:backend-api\/)?payments\/success(?:[/?#]|$)/i;
   const HOSTED_CHECKOUT_TRANSITION_TIMEOUT_MS = 120000;
@@ -1221,208 +1220,16 @@ function FindProxyForURL(url, host) {
       }
     }
 
-    function normalizeHelperCountryCode(countryCode = '86') {
-      const digits = String(countryCode || '').replace(/\D/g, '');
-      return digits || '86';
-    }
-
-    function normalizeHelperPhoneNumber(phone = '', countryCode = '86') {
-      const cleaned = String(phone || '').replace(/\D/g, '');
-      const countryDigits = normalizeHelperCountryCode(countryCode);
-      if (countryDigits && cleaned.startsWith(countryDigits) && cleaned.length > countryDigits.length) {
-        return cleaned.slice(countryDigits.length);
-      }
-      return cleaned;
-    }
-
-    function normalizeGpcHelperPhoneMode(value = '') {
+    function normalizeGpcBaseUrl(apiUrl = '') {
       const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcHelperPhoneMode) {
-        return rootScope.GoPayUtils.normalizeGpcHelperPhoneMode(value);
+      if (rootScope.GoPayUtils?.normalizeGpcBaseUrl) {
+        return rootScope.GoPayUtils.normalizeGpcBaseUrl(apiUrl);
       }
-      const normalized = String(value || '').trim().toLowerCase();
-      return normalized === GPC_HELPER_PHONE_MODE_AUTO || normalized === 'builtin'
-        ? GPC_HELPER_PHONE_MODE_AUTO
-        : GPC_HELPER_PHONE_MODE_MANUAL;
-    }
-
-    function normalizeGpcOtpChannel(value = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcOtpChannel) {
-        return rootScope.GoPayUtils.normalizeGpcOtpChannel(value);
-      }
-      return String(value || '').trim().toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
-    }
-
-    function resolveGpcHelperApiKey(state = {}) {
-      const apiKey = String(
-        state?.gopayHelperApiKey
-        || state?.gpcApiKey
-        || state?.apiKey
-        || ''
-      ).trim();
-      if (!apiKey) {
-        throw new Error('创建 GPC 订单失败：缺少 API Key。');
-      }
-      return apiKey;
-    }
-
-    function normalizeGpcHelperBaseUrl(apiUrl = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.normalizeGpcHelperBaseUrl) {
-        return rootScope.GoPayUtils.normalizeGpcHelperBaseUrl(apiUrl);
-      }
-      let normalized = String(apiUrl || DEFAULT_GPC_HELPER_API_URL).trim().replace(/\/+$/g, '');
+      let normalized = String(apiUrl || DEFAULT_GPC_BASE_URL).trim().replace(/\/+$/g, '');
       normalized = normalized.replace(/\/api\/checkout\/start$/i, '');
-      normalized = normalized.replace(/\/api\/gopay\/(?:otp|pin)$/i, '');
-      normalized = normalized.replace(/\/api\/gp\/tasks(?:\/[^/?#]+)?(?:\/(?:otp|pin|stop))?(?:\?.*)?$/i, '');
-      normalized = normalized.replace(/\/api\/gp\/balance(?:\?.*)?$/i, '');
+      normalized = normalized.replace(/\/api\/web\/card\/balance(?:\?.*)?$/i, '');
       normalized = normalized.replace(/\/api\/card\/balance(?:\?.*)?$/i, '');
-      normalized = normalized.replace(/\/api\/card\/redeem-api-key(?:\?.*)?$/i, '');
-      return normalized || DEFAULT_GPC_HELPER_API_URL;
-    }
-
-    function buildGpcHelperApiUrl(apiUrl = '', path = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcHelperApiUrl) {
-        return rootScope.GoPayUtils.buildGpcHelperApiUrl(apiUrl, path);
-      }
-      const baseUrl = normalizeGpcHelperBaseUrl(apiUrl);
-      if (!baseUrl) {
-        return '';
-      }
-      const normalizedPath = String(path || '').startsWith('/') ? String(path || '') : `/${String(path || '')}`;
-      return `${baseUrl}${normalizedPath}`;
-    }
-
-    function buildGpcTaskCreateUrl(apiUrl = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcTaskCreateUrl) {
-        return rootScope.GoPayUtils.buildGpcTaskCreateUrl(apiUrl);
-      }
-      return buildGpcHelperApiUrl(apiUrl, '/api/gp/tasks');
-    }
-
-    function buildGpcBalanceUrl(apiUrl = '') {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.buildGpcApiKeyBalanceUrl) {
-        return rootScope.GoPayUtils.buildGpcApiKeyBalanceUrl(apiUrl);
-      }
-      if (rootScope.GoPayUtils?.buildGpcCardBalanceUrl) {
-        return rootScope.GoPayUtils.buildGpcCardBalanceUrl(apiUrl);
-      }
-      return buildGpcHelperApiUrl(apiUrl, '/api/gp/balance');
-    }
-
-    function unwrapGpcResponse(payload = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.unwrapGpcResponse) {
-        return rootScope.GoPayUtils.unwrapGpcResponse(payload);
-      }
-      if (payload && typeof payload === 'object' && !Array.isArray(payload)
-        && Object.prototype.hasOwnProperty.call(payload, 'data')
-        && (Object.prototype.hasOwnProperty.call(payload, 'code') || Object.prototype.hasOwnProperty.call(payload, 'message'))) {
-        return payload.data ?? {};
-      }
-      return payload;
-    }
-
-    function isGpcUnifiedResponseOk(payload = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.isGpcUnifiedResponseOk) {
-        return rootScope.GoPayUtils.isGpcUnifiedResponseOk(payload);
-      }
-      if (!payload || typeof payload !== 'object' || !Object.prototype.hasOwnProperty.call(payload, 'code')) {
-        return true;
-      }
-      const code = Number(payload.code);
-      return Number.isFinite(code) ? code >= 200 && code < 300 : String(payload.code || '').trim() === '200';
-    }
-
-    function getGpcResponseErrorDetail(payload = {}, status = 0) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.extractGpcResponseErrorDetail) {
-        return rootScope.GoPayUtils.extractGpcResponseErrorDetail(payload, status);
-      }
-      return payload?.data?.detail || payload?.detail || payload?.message || payload?.error || `HTTP ${status || 0}`;
-    }
-
-    function getGpcRemainingUses(payload = {}) {
-      const rootScope = typeof self !== 'undefined' ? self : globalThis;
-      if (rootScope.GoPayUtils?.getGpcBalanceRemainingUses) {
-        return rootScope.GoPayUtils.getGpcBalanceRemainingUses(payload);
-      }
-      const data = unwrapGpcResponse(payload);
-      const numeric = Number(data?.remaining_uses ?? data?.remainingUses ?? data?.balance ?? data?.remaining);
-      return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : null;
-    }
-
-    function normalizeGpcAutoModePermissionValue(value) {
-      if (typeof value === 'boolean') {
-        return value;
-      }
-      if (typeof value === 'number') {
-        if (value === 1) return true;
-        if (value === 0) return false;
-      }
-      const normalized = String(value ?? '').trim().toLowerCase();
-      if (!normalized) {
-        return null;
-      }
-      if (['true', '1', 'yes', 'y', 'on', 'enabled', 'enable'].includes(normalized)) {
-        return true;
-      }
-      if (['false', '0', 'no', 'n', 'off', 'disabled', 'disable'].includes(normalized)) {
-        return false;
-      }
-      return null;
-    }
-
-    function getGpcAutoModePermission(payload = {}) {
-      const data = unwrapGpcResponse(payload);
-      if (!data || typeof data !== 'object' || Array.isArray(data)) {
-        return null;
-      }
-      return normalizeGpcAutoModePermissionValue(
-        data.auto_mode_enabled
-        ?? data.autoModeEnabled
-        ?? data.auto_enabled
-        ?? data.autoEnabled
-      );
-    }
-
-    function isGpcAutoModePermissionDenied(payload = {}) {
-      return getGpcAutoModePermission(payload) === false;
-    }
-
-    async function assertGpcApiKeyReadyForCreate(state = {}, phoneMode = GPC_HELPER_PHONE_MODE_MANUAL, apiKey = '') {
-      const apiUrl = buildGpcBalanceUrl(state?.gopayHelperApiUrl);
-      if (!apiUrl) {
-        throw new Error('创建 GPC 订单失败：缺少 API 地址。');
-      }
-      const { response, data } = await fetchJsonWithTimeout(apiUrl, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'X-API-Key': apiKey,
-        },
-      }, 30000);
-      if (!response?.ok || !isGpcUnifiedResponseOk(data)) {
-        const detail = getGpcResponseErrorDetail(data, response?.status || 0);
-        throw new Error(`创建 GPC 订单失败：API Key 校验失败：${detail}`);
-      }
-      const balanceData = unwrapGpcResponse(data);
-      const remainingUses = getGpcRemainingUses(balanceData);
-      const status = String(balanceData?.status || balanceData?.card_status || balanceData?.cardStatus || '').trim().toLowerCase();
-      if (status && status !== 'active') {
-        throw new Error(`创建 GPC 订单失败：API Key 状态不可用（${status}）。`);
-      }
-      if (remainingUses !== null && remainingUses <= 0) {
-        throw new Error('创建 GPC 订单失败：API Key 剩余次数不足。');
-      }
-      if (phoneMode === GPC_HELPER_PHONE_MODE_AUTO && isGpcAutoModePermissionDenied(balanceData)) {
-        throw new Error('创建 GPC 订单失败：当前 GPC API Key 未开通自动模式。');
-      }
+      return normalized || DEFAULT_GPC_BASE_URL;
     }
 
     async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000) {
@@ -1430,13 +1237,13 @@ function FindProxyForURL(url, host) {
         ? fetchImpl
         : (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
       if (typeof fetcher !== 'function') {
-        throw new Error('当前运行环境不支持 fetch，无法调用 GPC API。');
+        throw new Error('当前运行环境不支持 fetch，无法调用远端接口。');
       }
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const effectiveTimeoutMs = Math.max(1000, Number(timeoutMs) || 30000);
       let didTimeout = false;
       let timer = null;
-      const buildTimeoutError = () => new Error(`GPC API 请求超时（>${Math.round(effectiveTimeoutMs / 1000)} 秒）：${url}`);
+      const buildTimeoutError = () => new Error(`远端接口请求超时（>${Math.round(effectiveTimeoutMs / 1000)} 秒）：${url}`);
       const timeoutPromise = new Promise((_, reject) => {
         timer = setTimeout(() => {
           didTimeout = true;
@@ -1466,13 +1273,100 @@ function FindProxyForURL(url, host) {
       }
     }
 
-    async function readAccessTokenFromChatGptSessionTab(tabId) {
+    function resolveGpcCardKey(state = {}) {
+      const cardKey = String(state?.gpcCardKey || '').trim();
+      if (!cardKey) {
+        throw new Error('步骤 6：GPC 模式缺少卡密，请先在侧边栏填写 GPC 卡密。');
+      }
+      return cardKey;
+    }
+
+    function buildGpcPortalUrl(state = {}) {
+      const baseUrl = normalizeGpcBaseUrl(state?.gpcBaseUrl || DEFAULT_GPC_BASE_URL)
+        .replace(/\/+$/g, '');
+      return `${baseUrl || DEFAULT_GPC_BASE_URL}/`;
+    }
+
+    function isGpcPortalUrl(url = '') {
+      const text = String(url || '').trim();
+      if (!text) {
+        return false;
+      }
+      try {
+        const parsed = new URL(text);
+        return parsed.hostname === 'gpc.qlhazycoder.top';
+      } catch {
+        return /^https:\/\/gpc\.qlhazycoder\.top(?:\/|$)/i.test(text);
+      }
+    }
+
+    async function findOpenGpcPortalTabId(portalUrl = GPC_PORTAL_URL) {
+      const queryTabs = typeof queryTabsInAutomationWindow === 'function'
+        ? queryTabsInAutomationWindow
+        : (chrome?.tabs?.query ? (queryInfo) => chrome.tabs.query(queryInfo) : null);
+      if (typeof queryTabs !== 'function') {
+        return 0;
+      }
+      const tabs = await queryTabs({}).catch(() => []);
+      const candidates = (Array.isArray(tabs) ? tabs : [])
+        .filter((tab) => Number.isInteger(tab?.id) && isGpcPortalUrl(tab.url || ''));
+      if (!candidates.length) {
+        return 0;
+      }
+      const match = candidates.find((tab) => tab.active && tab.currentWindow)
+        || candidates.find((tab) => tab.active)
+        || candidates[0];
+      if (match?.id && chrome?.tabs?.update) {
+        await chrome.tabs.update(match.id, { url: portalUrl, active: true }).catch(() => (
+          chrome.tabs.update(match.id, { active: true }).catch(() => {})
+        ));
+      }
+      return match?.id || 0;
+    }
+
+    async function openOrReuseGpcPortalTab(state = {}) {
+      const portalUrl = buildGpcPortalUrl(state);
+      const storedTab = await getTabById(Number(state?.plusCheckoutTabId) || 0);
+      if (storedTab?.id && isGpcPortalUrl(storedTab.url || '')) {
+        if (chrome?.tabs?.update) {
+          await chrome.tabs.update(storedTab.id, { url: portalUrl, active: true }).catch(() => (
+            chrome.tabs.update(storedTab.id, { active: true }).catch(() => {})
+          ));
+        }
+        if (typeof registerTab === 'function') {
+          await registerTab(PLUS_CHECKOUT_SOURCE, storedTab.id);
+        }
+        return { tabId: storedTab.id, portalUrl };
+      }
+
+      const existingTabId = await findOpenGpcPortalTabId(portalUrl);
+      if (existingTabId) {
+        if (typeof registerTab === 'function') {
+          await registerTab(PLUS_CHECKOUT_SOURCE, existingTabId);
+        }
+        return { tabId: existingTabId, portalUrl };
+      }
+
+      const tab = typeof createAutomationTab === 'function'
+        ? await createAutomationTab({ url: portalUrl, active: true })
+        : await chrome.tabs.create({ url: portalUrl, active: true });
+      const tabId = Number(tab?.id);
+      if (!Number.isInteger(tabId)) {
+        throw new Error('步骤 6：打开 GPC 页面失败。');
+      }
+      if (typeof registerTab === 'function') {
+        await registerTab(PLUS_CHECKOUT_SOURCE, tabId);
+      }
+      return { tabId, portalUrl };
+    }
+
+    async function readSessionFromChatGptSessionTab(tabId) {
       await waitForTabCompleteUntilStopped(tabId);
       await sleepWithStop(1000);
       await ensureContentScriptReadyOnTabUntilStopped(PLUS_CHECKOUT_SOURCE, tabId, {
         inject: PLUS_CHECKOUT_INJECT_FILES,
         injectSource: PLUS_CHECKOUT_SOURCE,
-        logMessage: '步骤 6：正在等待 ChatGPT 页面完成加载，再继续获取 accessToken...',
+        logMessage: '步骤 6：正在等待 ChatGPT 页面完成加载，再继续获取 session...',
       });
 
       const sessionResult = await sendTabMessageUntilStopped(tabId, PLUS_CHECKOUT_SOURCE, {
@@ -1486,125 +1380,148 @@ function FindProxyForURL(url, host) {
       if (sessionResult?.error) {
         throw new Error(sessionResult.error);
       }
-      return String(sessionResult?.accessToken || sessionResult?.session?.accessToken || '').trim();
+      const session = sessionResult?.session && typeof sessionResult.session === 'object'
+        ? sessionResult.session
+        : null;
+      const accessToken = String(sessionResult?.accessToken || session?.accessToken || '').trim();
+      if (!session || !accessToken) {
+        throw new Error('步骤 6：GPC 模式获取 ChatGPT session 失败。');
+      }
+      return session;
     }
 
-    async function generateGpcCheckoutFromApi(accessToken = '', state = {}) {
-      const token = String(accessToken || '').trim();
-      if (!token) {
-        throw new Error('创建 GPC 订单失败：缺少 accessToken。');
+    async function prepareGpcPortalPage(tabId, cardKey = '', sessionJson = '') {
+      if (!chrome?.scripting?.executeScript) {
+        throw new Error('步骤 6：当前运行环境不支持脚本注入，无法填写 GPC 页面。');
       }
-      const apiUrl = buildGpcTaskCreateUrl(state?.gopayHelperApiUrl);
-      if (!apiUrl) {
-        throw new Error('创建 GPC 订单失败：缺少 API 地址。');
-      }
-      const phoneMode = normalizeGpcHelperPhoneMode(state?.gopayHelperPhoneMode || state?.phoneMode);
-      const isAutoMode = phoneMode === GPC_HELPER_PHONE_MODE_AUTO;
-      const phoneNumber = String(state?.gopayHelperPhoneNumber || '').trim();
-      const countryCode = normalizeHelperCountryCode(state?.gopayHelperCountryCode || '86');
-      const pin = String(state?.gopayHelperPin || '').trim();
-      const apiKey = resolveGpcHelperApiKey(state);
-      if (!isAutoMode && !phoneNumber) {
-        throw new Error('创建 GPC 订单失败：手动模式缺少手机号。');
-      }
-      if (!isAutoMode && !pin) {
-        throw new Error('创建 GPC 订单失败：手动模式缺少 PIN。');
-      }
+      await waitForTabCompleteUntilStopped(tabId);
+      await sleepWithStop(800);
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (rawCardKey, rawSessionJson) => {
+          const textOf = (element) => String(element?.innerText || element?.textContent || element?.value || '').replace(/\s+/g, ' ').trim();
+          const isVisible = (element) => {
+            if (!element) return false;
+            const style = window.getComputedStyle ? window.getComputedStyle(element) : null;
+            if (style && (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0)) {
+              return false;
+            }
+            const rect = typeof element.getBoundingClientRect === 'function' ? element.getBoundingClientRect() : null;
+            return !rect || rect.width > 0 || rect.height > 0;
+          };
+          const dispatchInput = (element, value) => {
+            element.focus?.();
+            element.value = value;
+            element.dispatchEvent?.(new Event('input', { bubbles: true }));
+            element.dispatchEvent?.(new Event('change', { bubbles: true }));
+            element.blur?.();
+          };
+          const clickElement = (element) => {
+            element.scrollIntoView?.({ block: 'center', inline: 'center' });
+            element.click?.();
+          };
+          const modeButtons = Array.from(document.querySelectorAll('button, [role="button"], .design-mode-card, .mode-card'));
+          const cardModeButton = modeButtons.find((element) => /卡密充值/.test(textOf(element)));
+          if (cardModeButton && !/\bactive\b/i.test(String(cardModeButton.className || ''))) {
+            clickElement(cardModeButton);
+          } else if (cardModeButton) {
+            clickElement(cardModeButton);
+          }
 
-      throwIfStopped();
-      await assertGpcApiKeyReadyForCreate(state, phoneMode, apiKey);
-      throwIfStopped();
-      const payload = {
-        access_token: token,
-        phone_mode: phoneMode,
-      };
-      if (!isAutoMode) {
-        payload.country_code = countryCode;
-        payload.phone_number = normalizeHelperPhoneNumber(phoneNumber, countryCode);
-        payload.otp_channel = normalizeGpcOtpChannel(state?.gopayHelperOtpChannel);
-      }
+          const compactCardKey = String(rawCardKey || '').trim().replace(/\s+/g, '');
+          const explicitSegments = compactCardKey.includes('-') || compactCardKey.includes('_')
+            ? compactCardKey.split(/[-_]+/).filter(Boolean)
+            : [];
+          const cardSegments = explicitSegments.length
+            ? explicitSegments
+            : (compactCardKey.match(/.{1,8}/g) || []);
+          const cardInputs = Array.from(document.querySelectorAll('input.card-key-seg, input[placeholder*="XXXXXXXX"], input[maxlength="8"]'))
+            .filter(isVisible);
+          cardInputs.forEach((input, index) => {
+            dispatchInput(input, cardSegments[index] || '');
+          });
+          if (!cardInputs.length) {
+            const fallbackInput = Array.from(document.querySelectorAll('input')).find((input) => /卡密|card/i.test([
+              input.placeholder,
+              input.name,
+              input.id,
+              input.className,
+            ].join(' ')));
+            if (fallbackInput) {
+              dispatchInput(fallbackInput, compactCardKey);
+            }
+          }
 
-      const orderCreatedAt = Date.now();
-      const { response, data } = await fetchJsonWithTimeout(apiUrl, {
-        method: 'POST',
-        headers: {
-          Accept: '*/*',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
+          const sessionTextarea = Array.from(document.querySelectorAll('textarea')).find((textarea) => /session|accessToken|完整/i.test([
+            textarea.placeholder,
+            textarea.name,
+            textarea.id,
+            textarea.className,
+          ].join(' '))) || document.querySelector('textarea.design-session-input') || document.querySelector('textarea');
+          if (!sessionTextarea) {
+            throw new Error('未找到 GPC session 输入框。');
+          }
+          dispatchInput(sessionTextarea, String(rawSessionJson || ''));
+
+          const startButton = Array.from(document.querySelectorAll('button, [role="button"]'))
+            .find((button) => /开始\s*Plus\s*充值|任务进行中/.test(textOf(button)));
+          return {
+            ok: true,
+            cardInputCount: cardInputs.length,
+            cardSegments: cardSegments.map((segment) => segment ? segment.length : 0),
+            sessionLength: String(sessionTextarea.value || '').length,
+            startButtonText: textOf(startButton),
+            activeModeText: textOf(cardModeButton),
+            url: location.href,
+          };
         },
-        body: JSON.stringify(payload),
-      }, 30000);
-
-      const taskData = unwrapGpcResponse(data);
-      const taskId = String(taskData?.task_id || taskData?.taskId || '').trim();
-
-      if (!response?.ok || !isGpcUnifiedResponseOk(data) || !taskId) {
-        const detail = getGpcResponseErrorDetail(data, response?.status || 0);
-        throw new Error(`创建 GPC 订单失败：${detail}`);
+        args: [cardKey, sessionJson],
+      });
+      const result = results?.[0]?.result || {};
+      if (!result?.ok) {
+        throw new Error('步骤 6：GPC 页面准备失败。');
       }
-
-      return {
-        taskId,
-        taskStatus: String(taskData?.status || '').trim(),
-        statusText: String(taskData?.status_text || taskData?.statusText || '').trim(),
-        remoteStage: String(taskData?.remote_stage || taskData?.remoteStage || '').trim(),
-        orderCreatedAt,
-        responsePayload: taskData && typeof taskData === 'object' && !Array.isArray(taskData) ? taskData : null,
-        phoneMode: normalizeGpcHelperPhoneMode(taskData?.phone_mode || taskData?.phoneMode || phoneMode),
-        country: 'ID',
-        currency: 'IDR',
-        checkoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
-      };
+      return result;
     }
 
     async function executeGpcCheckoutCreate(state = {}) {
-      let accessToken = String(state?.contributionAccessToken || state?.accessToken || state?.chatgptAccessToken || '').trim();
-      if (!accessToken) {
-        await addLog('步骤 6：正在获取 accessToken...', 'info');
-        const tokenTabId = await openFreshChatGptTabForCheckoutCreate();
-        try {
-          accessToken = await readAccessTokenFromChatGptSessionTab(tokenTabId);
-        } finally {
-          if (chrome?.tabs?.remove && Number.isInteger(tokenTabId)) {
-            await chrome.tabs.remove(tokenTabId).catch(() => {});
-          }
+      const cardKey = resolveGpcCardKey(state);
+      await addLog('步骤 6：正在打开 GPC 页面并准备卡密充值模式...', 'info');
+      const { tabId, portalUrl } = await openOrReuseGpcPortalTab(state);
+      await addLog('步骤 6：正在从 ChatGPT 获取完整 session...', 'info');
+      const sessionTabId = await openFreshChatGptTabForCheckoutCreate();
+      let session = null;
+      try {
+        session = await readSessionFromChatGptSessionTab(sessionTabId);
+      } finally {
+        if (chrome?.tabs?.remove && Number.isInteger(sessionTabId)) {
+          await chrome.tabs.remove(sessionTabId).catch(() => {});
         }
       }
-      if (!accessToken) {
-        throw new Error('步骤 6：GPC 模式获取 accessToken 失败。');
-      }
 
-      await addLog('步骤 6：正在调用 GPC 接口创建订单...', 'info');
-      const result = await generateGpcCheckoutFromApi(accessToken, state);
+      const sessionJson = JSON.stringify(session);
+      if (chrome?.tabs?.update) {
+        await chrome.tabs.update(tabId, { active: true }).catch(() => {});
+      }
+      await addLog('步骤 6：正在填写 GPC 卡密和 ChatGPT session...', 'info');
+      const prepared = await prepareGpcPortalPage(tabId, cardKey, sessionJson);
       await setState({
-        plusCheckoutTabId: null,
-        plusCheckoutUrl: '',
-        plusCheckoutCountry: result.country || 'ID',
-        plusCheckoutCurrency: result.currency || 'IDR',
-        plusCheckoutSource: result.checkoutSource,
-        gopayHelperTaskId: result.taskId,
-        gopayHelperTaskStatus: result.taskStatus,
-        gopayHelperStatusText: result.statusText,
-        gopayHelperRemoteStage: result.remoteStage,
-        gopayHelperTaskPayload: result.responsePayload,
-        gopayHelperTaskProgressSignature: '',
-        gopayHelperTaskProgressAt: 0,
-        gopayHelperTaskProgressTaskId: result.taskId,
-        gopayHelperReferenceId: '',
-        gopayHelperGoPayGuid: '',
-        gopayHelperRedirectUrl: '',
-        gopayHelperNextAction: '',
-        gopayHelperFlowId: '',
-        gopayHelperChallengeId: '',
-        gopayHelperStartPayload: null,
-        gopayHelperOrderCreatedAt: result.orderCreatedAt || Date.now(),
+        plusCheckoutTabId: tabId,
+        plusCheckoutUrl: portalUrl,
+        plusCheckoutCountry: 'US',
+        plusCheckoutCurrency: 'USD',
+        plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
+        gpcPageStatus: 'prepared',
+        gpcPageStatusText: '页面已准备',
       });
-      await addLog(`步骤 6：GPC ${result.phoneMode === GPC_HELPER_PHONE_MODE_AUTO ? '自动' : '手动'}模式任务已创建（task_id: ${result.taskId}），准备继续下一步。`, 'info');
+      await addLog(
+        `步骤 6：GPC 页面已准备完成（卡密 ${prepared.cardInputCount || 0} 段，session ${prepared.sessionLength || 0} 字符），准备继续下一步。`,
+        'ok'
+      );
       await completeNodeFromBackground('plus-checkout-create', {
-        plusCheckoutCountry: result.country || 'ID',
-        plusCheckoutCurrency: result.currency || 'IDR',
-        plusCheckoutSource: result.checkoutSource,
+        plusCheckoutCountry: 'US',
+        plusCheckoutCurrency: 'USD',
+        plusCheckoutSource: PLUS_PAYMENT_METHOD_GPC_HELPER,
       });
     }
 

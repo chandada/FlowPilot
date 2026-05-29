@@ -12,16 +12,9 @@ test('GoPay utils normalize manual OTP input', () => {
   const api = loadGoPayUtils();
   assert.equal(api.normalizeGoPayOtp(' 12-34 56 '), '123456');
   assert.equal(api.normalizeGoPayOtp('abc'), '');
-  assert.equal(api.normalizeGpcOtpChannel('sms'), 'sms');
-  assert.equal(api.normalizeGpcOtpChannel('wa'), 'whatsapp');
-  assert.equal(api.normalizeGpcOtpChannel('unknown'), 'whatsapp');
-  assert.equal(api.normalizeGpcHelperPhoneMode('auto'), 'auto');
-  assert.equal(api.normalizeGpcHelperPhoneMode('builtin'), 'auto');
-  assert.equal(api.normalizeGpcHelperPhoneMode('manual'), 'manual');
-  assert.equal(api.normalizeGpcHelperPhoneMode('unknown'), 'manual');
 });
 
-test('GoPay utils keeps GPC helper payment method distinct', () => {
+test('GoPay utils keeps GPC payment method distinct', () => {
   const api = loadGoPayUtils();
   assert.equal(api.normalizePlusPaymentMethod('paypal-hosted'), 'paypal-hosted');
   assert.equal(api.normalizePlusPaymentMethod('paypal_direct'), 'paypal-hosted');
@@ -32,51 +25,26 @@ test('GoPay utils keeps GPC helper payment method distinct', () => {
   assert.equal(api.normalizePlusPaymentMethod('unknown'), 'paypal');
 });
 
-test('GoPay utils builds GPC queue task and balance URLs from helper endpoints', () => {
+test('GoPay utils builds GPC card balance URLs from portal endpoints', () => {
   const api = loadGoPayUtils();
-  assert.equal(api.DEFAULT_GPC_HELPER_API_URL, 'https://gpc.qlhazycoder.top');
-  assert.equal(api.normalizeGpcHelperBaseUrl(''), 'https://gpc.qlhazycoder.top');
-  assert.equal(api.normalizeGpcHelperBaseUrl('https://example.com/api/gp/tasks'), 'https://gpc.qlhazycoder.top');
+  assert.equal(api.DEFAULT_GPC_BASE_URL, 'https://gpc.qlhazycoder.top');
+  assert.equal(api.normalizeGpcBaseUrl(''), 'https://gpc.qlhazycoder.top');
+  assert.equal(api.normalizeGpcBaseUrl('https://example.com/api/web/card/balance'), 'https://gpc.qlhazycoder.top');
   assert.equal(
-    api.buildGpcHelperApiUrl('', '/api/checkout/start'),
+    api.buildGpcApiUrl('', '/api/checkout/start'),
     'https://gpc.qlhazycoder.top/api/checkout/start'
   );
   assert.equal(
-    api.buildGpcApiKeyBalanceUrl('http://localhost:18473/'),
-    'http://localhost:18473/api/gp/balance'
+    api.buildGpcCardBalanceUrl('https://gpc.qlhazycoder.top/api/web/card/balance'),
+    'https://gpc.qlhazycoder.top/api/web/card/balance'
   );
   assert.equal(
-    api.buildGpcCardBalanceUrl('https://gpc.qlhazycoder.top/api/gp/balance'),
-    'https://gpc.qlhazycoder.top/api/gp/balance'
+    api.buildGpcCardBalanceUrl('https://gpc.qlhazycoder.top/api/web/card/balance?card_key=old', ' gpc-6c9f1a32-45734795-914e6f00 '),
+    'https://gpc.qlhazycoder.top/api/web/card/balance?card_key=GPC-6C9F1A32-45734795-914E6F00'
   );
-  assert.deepEqual(
-    api.buildGpcApiKeyHeaders(' gpc-123 ', { Accept: 'application/json' }),
-    { Accept: 'application/json', 'X-API-Key': 'gpc-123' }
-  );
-  assert.equal(
-    api.buildGpcTaskCreateUrl('https://gpc.qlhazycoder.top/api/checkout/start'),
-    'https://gpc.qlhazycoder.top/api/gp/tasks'
-  );
-  assert.equal(
-    api.buildGpcTaskQueryUrl('https://gpc.qlhazycoder.top/api/gp/tasks/task_old?card_key=old', 'task/1'),
-    'https://gpc.qlhazycoder.top/api/gp/tasks/task%2F1'
-  );
-  assert.equal(
-    api.buildGpcTaskActionUrl('https://gpc.qlhazycoder.top/api/gp/tasks/task_old/stop', 'task_1', 'pin'),
-    'https://gpc.qlhazycoder.top/api/gp/tasks/task_1/pin'
-  );
-});
-
-test('GoPay utils builds GPC queue OTP/PIN payloads without card_key', () => {
-  const api = loadGoPayUtils();
-  assert.deepEqual(
-    api.buildGpcTaskOtpPayload({ otp: ' 12-34 56 ', card_key: ' card_1 ', reference_id: 'ref_1' }),
-    { otp: '123456' }
-  );
-  assert.deepEqual(
-    api.buildGpcTaskPinPayload({ pin: '65-43-21', cardKey: 'card_1', challengeId: 'challenge_1' }),
-    { pin: '654321' }
-  );
+  assert.equal(api.normalizeGpcCardKey(' gpc-6c9f1a32-45734795-914e6f00 '), 'GPC-6C9F1A32-45734795-914E6F00');
+  assert.equal(api.isGpcCardKeyFormat('GPC-6C9F1A32-45734795-914E6F00'), true);
+  assert.equal(api.isGpcCardKeyFormat('card-key-1'), false);
 });
 
 test('GoPay utils formats balance and maps linked-account errors', () => {
@@ -102,15 +70,14 @@ test('GoPay utils formats balance and maps linked-account errors', () => {
     '余额 998/1000，已用 2，状态 active'
   );
   assert.equal(api.getGpcBalanceRemainingUses({ data: { remaining_uses: 998 } }), 998);
-  assert.equal(api.isGpcAutoModeEnabled({ data: { auto_mode_enabled: true } }), true);
-  assert.equal(api.isGpcAutoModeEnabled({ data: { auto_mode_enabled: false } }), false);
+  assert.equal(api.getGpcCardStatus({ data: { status: 'active' } }), 'active');
   assert.deepEqual(
-    api.unwrapGpcResponse({ code: 200, message: 'ok', data: { task_id: 'task_1' } }),
-    { task_id: 'task_1' }
+    api.unwrapGpcResponse({ code: 200, message: 'ok', data: { remaining_uses: 1 } }),
+    { remaining_uses: 1 }
   );
   assert.equal(
-    api.extractGpcResponseErrorDetail({ errors: [{ loc: ['body', 'otp'], msg: 'Field required' }] }, 422),
-    'body.otp: Field required'
+    api.extractGpcResponseErrorDetail({ errors: [{ loc: ['query', 'card_key'], msg: 'Field required' }] }, 422),
+    'query.card_key: Field required'
   );
   assert.equal(
     api.extractGpcResponseErrorDetail({

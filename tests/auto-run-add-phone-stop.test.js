@@ -441,7 +441,7 @@ test('auto-run controller treats phone-number supply exhaustion as round-fatal a
   assert.equal(runtime.state.autoRunSessionId, 0);
 });
 
-test('auto-run controller treats ended GPC task as round-fatal and skips same-round retries', async () => {
+test('auto-run controller treats ended GPC page flow as round-fatal and skips same-round retries', async () => {
   const events = {
     logs: [],
     broadcasts: [],
@@ -528,7 +528,7 @@ test('auto-run controller treats ended GPC task as round-fatal and skips same-ro
       autoRunAttemptRun: payload.attemptRun ?? 0,
       autoRunSessionId: payload.sessionId ?? 0,
     }),
-    getErrorMessage: (error) => String(error?.message || error || '').replace(/^GPC_TASK_ENDED::/i, ''),
+    getErrorMessage: (error) => String(error?.message || error || '').replace(/^GPC_PAGE_FLOW_ENDED::/i, ''),
     getFirstUnfinishedStep: () => 1,
     getPendingAutoRunTimerPlan: () => null,
     getRunningSteps: () => [],
@@ -541,7 +541,7 @@ test('auto-run controller treats ended GPC task as round-fatal and skips same-ro
     getStopRequested: () => false,
     hasSavedProgress: () => false,
     isAddPhoneAuthFailure: () => false,
-    isGpcTaskEndedFailure: (error) => /GPC_TASK_ENDED::/i.test(error?.message || String(error || '')),
+    isGpcPageFlowEndedFailure: (error) => /GPC_PAGE_FLOW_ENDED::/i.test(error?.message || String(error || '')),
     isRestartCurrentAttemptError: () => false,
     isStopError: (error) => (error?.message || String(error || '')) === '流程已被用户停止。',
     launchAutoRunTimerPlan: async () => false,
@@ -558,7 +558,7 @@ test('auto-run controller treats ended GPC task as round-fatal and skips same-ro
     runAutoSequenceFromStep: async () => {
       events.runCalls += 1;
       if (events.runCalls === 1) {
-        throw new Error('GPC_TASK_ENDED::等待 OTP 超过 60 秒，任务已超时');
+        throw new Error('GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面等待超时，未检测到订阅完成。');
       }
     },
     runtime,
@@ -592,12 +592,12 @@ test('auto-run controller treats ended GPC task as round-fatal and skips same-ro
     mode: 'restart',
   });
 
-  assert.equal(events.runCalls, 2, 'ended GPC task should fail current round and continue next round');
+  assert.equal(events.runCalls, 2, 'ended GPC page flow should fail current round and continue next round');
   assert.equal(events.broadcasts.some(({ phase }) => phase === 'retrying'), false);
   assert.equal(events.accountRecords.length, 1);
   assert.equal(events.accountRecords[0].status, 'failed');
-  assert.match(events.accountRecords[0].reason, /等待 OTP/);
-  assert.ok(events.logs.some(({ message }) => /GPC 任务.*继续下一轮|继续下一轮/.test(message)));
+  assert.match(events.accountRecords[0].reason, /GPC 页面等待超时/);
+  assert.ok(events.logs.some(({ message }) => /GPC 页面流程.*继续下一轮|继续下一轮/.test(message)));
 });
 
 test('auto-run controller keeps same-round retrying for step9 local replacement exhaustion errors', async () => {

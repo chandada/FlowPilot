@@ -156,37 +156,6 @@ function createCheckoutContentHarness() {
   return { checkoutEvents, send };
 }
 
-function createGpcBalanceResponse(overrides = {}) {
-  return {
-    code: 200,
-    message: 'ok',
-    data: {
-      api_key: 'gpc_test',
-      status: 'active',
-      auto_mode_enabled: false,
-      total_uses: 1000,
-      remaining_uses: 998,
-      used_uses: 2,
-      ...overrides,
-    },
-  };
-}
-
-function createGpcTaskResponse(overrides = {}) {
-  return {
-    code: 200,
-    message: 'ok',
-    data: {
-      task_id: 'task_123',
-      status: 'active',
-      status_text: '处理中',
-      phone_mode: 'manual',
-      remote_stage: 'checkout_start',
-      ...overrides,
-    },
-  };
-}
-
 test('Plus checkout create does not wait 20 seconds after opening checkout page', async () => {
   const events = [];
   const executor = api.createPlusCheckoutCreateExecutor({
@@ -878,435 +847,199 @@ test('Plus checkout content routes same-frame autocomplete query and suggestion 
   assert.equal(checkoutEvents.some((event) => event.type === 'delay' && event.ms !== 2000), false);
 });
 
-test('GPC manual checkout injects Plus script before reading ChatGPT session token and sends X-API-Key', async () => {
+function createFakeGpcPrepareDom() {
+  const dispatches = [];
+  function createElement({ tagName = 'DIV', text = '', placeholder = '', className = '', value = '', disabled = false } = {}) {
+    return {
+      tagName,
+      textContent: text,
+      innerText: text,
+      placeholder,
+      className,
+      value,
+      disabled,
+      clicked: false,
+      style: { display: 'block', visibility: 'visible', opacity: '1' },
+      name: '',
+      id: '',
+      getAttribute(name) {
+        if (name === 'class') return this.className;
+        if (name === 'aria-disabled') return this.disabled ? 'true' : '';
+        if (name === 'placeholder') return this.placeholder;
+        return '';
+      },
+      focus() {},
+      blur() {},
+      scrollIntoView() {},
+      click() {
+        this.clicked = true;
+      },
+      dispatchEvent(event) {
+        dispatches.push({ element: this, type: event?.type || '' });
+        return true;
+      },
+      getBoundingClientRect() {
+        return { width: 120, height: 32 };
+      },
+    };
+  }
+
+  const freeButton = createElement({ tagName: 'BUTTON', text: '免费充值' });
+  const cardModeButton = createElement({ tagName: 'BUTTON', text: '卡密充值 使用付费卡密扣次充值' });
+  const startButton = createElement({ tagName: 'BUTTON', text: '开始 Plus 充值' });
+  const cardInputs = [
+    createElement({ tagName: 'INPUT', placeholder: 'XXXXXXXX', className: 'card-key-seg' }),
+    createElement({ tagName: 'INPUT', placeholder: 'XXXXXXXX', className: 'card-key-seg' }),
+    createElement({ tagName: 'INPUT', placeholder: 'XXXXXXXX', className: 'card-key-seg' }),
+  ];
+  const sessionTextarea = createElement({
+    tagName: 'TEXTAREA',
+    placeholder: '可直接粘贴完整 session JSON，会自动提取 accessToken',
+    className: 'design-session-input',
+  });
+
+  return {
+    cardModeButton,
+    cardInputs,
+    dispatches,
+    sessionTextarea,
+    document: {
+      querySelectorAll(selector) {
+        const text = String(selector || '');
+        if (text.includes('button') || text.includes('[role="button"]') || text.includes('.design-mode-card')) {
+          return [freeButton, cardModeButton, startButton];
+        }
+        if (text.includes('input.card-key-seg') || text.includes('placeholder*="XXXXXXXX"') || text.includes('maxlength="8"')) {
+          return cardInputs;
+        }
+        if (text === 'textarea') {
+          return [sessionTextarea];
+        }
+        if (text === 'input') {
+          return cardInputs;
+        }
+        return [];
+      },
+      querySelector(selector) {
+        return String(selector || '').includes('textarea') ? sessionTextarea : null;
+      },
+      body: { innerText: 'SYSTEM 页面已就绪' },
+      documentElement: { innerText: 'SYSTEM 页面已就绪' },
+    },
+  };
+}
+
+test('GPC checkout prepare opens page, fills segmented card key, and writes full ChatGPT session JSON', async () => {
   const events = [];
-  const fetchCalls = [];
+  const dom = createFakeGpcPrepareDom();
+  const session = {
+    user: { email: 'current@example.com' },
+    accessToken: 'session-access-token',
+    expires: '2026-06-01T00:00:00.000Z',
+  };
   const executor = api.createPlusCheckoutCreateExecutor({
     addLog: async (message, level = 'info') => events.push({ type: 'log', message, level }),
     chrome: {
       tabs: {
         create: async (payload) => {
           events.push({ type: 'tab-create', payload });
-          return { id: 77 };
+          return { id: payload.url === 'https://gpc.qlhazycoder.top/' ? 77 : 88, url: payload.url };
         },
+        get: async () => null,
+        query: async () => [],
         remove: async (tabId) => events.push({ type: 'tab-remove', tabId }),
+        update: async (tabId, payload) => events.push({ type: 'tab-update', tabId, payload }),
+      },
+      scripting: {
+        executeScript: async (details) => {
+          events.push({ type: 'execute-script', target: details.target, args: details.args });
+          const previous = {
+            document: global.document,
+            window: global.window,
+            location: global.location,
+            Event: global.Event,
+          };
+          global.document = dom.document;
+          global.window = { getComputedStyle: (element) => element?.style || {} };
+          global.location = { href: 'https://gpc.qlhazycoder.top/' };
+          global.Event = class TestEvent { constructor(type) { this.type = type; } };
+          try {
+            return [{ result: details.func(...(details.args || [])) }];
+          } finally {
+            global.document = previous.document;
+            global.window = previous.window;
+            global.location = previous.location;
+            global.Event = previous.Event;
+          }
+        },
       },
     },
     completeNodeFromBackground: async (step, payload) => events.push({ type: 'complete', step, payload }),
-    ensureContentScriptReadyOnTabUntilStopped: async (source, tabId, options) => events.push({ type: 'ready', source, tabId, options }),
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => url.endsWith('/api/gp/balance')
-          ? createGpcBalanceResponse({ auto_mode_enabled: false, remaining_uses: 998 })
-          : createGpcTaskResponse({ otp_channel: 'whatsapp' }),
-      };
+    createAutomationTab: async (payload) => {
+      events.push({ type: 'automation-tab-create', payload });
+      return { id: payload.url === 'https://gpc.qlhazycoder.top/' ? 77 : 88, url: payload.url };
     },
+    ensureContentScriptReadyOnTabUntilStopped: async (source, tabId, options) => events.push({ type: 'ready', source, tabId, options }),
+    queryTabsInAutomationWindow: async () => [],
     registerTab: async (source, tabId) => events.push({ type: 'register', source, tabId }),
     sendTabMessageUntilStopped: async (tabId, source, message) => {
       events.push({ type: 'tab-message', tabId, source, message });
-      return { accessToken: 'session-access-token' };
+      return { session, accessToken: session.accessToken };
     },
     setState: async (payload) => events.push({ type: 'set-state', payload }),
     sleepWithStop: async (ms) => events.push({ type: 'sleep', ms }),
-    waitForTabCompleteUntilStopped: async () => events.push({ type: 'tab-complete' }),
+    waitForTabCompleteUntilStopped: async (tabId) => events.push({ type: 'tab-complete', tabId }),
   });
 
   await executor.executePlusCheckoutCreate({
-    email: 'Current.Round+GPC@Example.COM',
     plusPaymentMethod: 'gpc-helper',
-    gopayHelperPhoneMode: 'manual',
-    gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-    gopayHelperPhoneNumber: '+8613800138000',
-    gopayPhone: '',
-    gopayHelperCountryCode: '+86',
-    gopayHelperPin: '123456',
-    gopayHelperApiKey: 'gpc_test_123',
+    gpcCardKey: 'AAAA1111BBBB2222CCCC3333',
   });
 
-  const readyIndex = events.findIndex((event) => event.type === 'ready');
-  const messageIndex = events.findIndex((event) => event.type === 'tab-message');
-  assert.ok(readyIndex >= 0);
-  assert.ok(messageIndex > readyIndex);
-  assert.equal(events[messageIndex].message.type, 'PLUS_CHECKOUT_GET_STATE');
-  assert.deepEqual(events[messageIndex].message.payload, {
+  assert.equal(dom.cardModeButton.clicked, true);
+  assert.deepEqual(dom.cardInputs.map((input) => input.value), ['AAAA1111', 'BBBB2222', 'CCCC3333']);
+  assert.equal(dom.sessionTextarea.value, JSON.stringify(session));
+  const sessionMessage = events.find((event) => event.type === 'tab-message');
+  assert.deepEqual(sessionMessage.message.payload, {
     includeSession: true,
     includeAccessToken: true,
   });
-  assert.equal(fetchCalls.length, 2);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-  assert.equal(fetchCalls[0].options.headers['X-API-Key'], 'gpc_test_123');
-  assert.equal(fetchCalls[1].url, 'https://gpc.qlhazycoder.top/api/gp/tasks');
-  const helperPayload = JSON.parse(fetchCalls[1].options.body);
-  assert.deepEqual(helperPayload, {
-    access_token: 'session-access-token',
-    phone_mode: 'manual',
-    country_code: '86',
-    phone_number: '13800138000',
-    otp_channel: 'whatsapp',
-  });
-  assert.equal(fetchCalls[1].options.headers['X-API-Key'], 'gpc_test_123');
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'card_key'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'customer_email'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'checkout_ui_mode'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'gopay_link'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'plan_name'), false);
-  assert.equal(events.find((event) => event.type === 'set-state')?.payload?.plusCheckoutSource, 'gpc-helper');
-  assert.equal(events.find((event) => event.type === 'set-state')?.payload?.gopayHelperTaskId, 'task_123');
-  assert.equal(events.find((event) => event.type === 'set-state')?.payload?.gopayHelperTaskStatus, 'active');
-  assert.equal(events.find((event) => event.type === 'set-state')?.payload?.gopayHelperStatusText, '处理中');
-  assert.equal(events.find((event) => event.type === 'set-state')?.payload?.gopayHelperRemoteStage, 'checkout_start');
-  assert.equal(events.find((event) => event.type === 'set-state')?.payload?.gopayHelperReferenceId, '');
-  assert.ok(events.find((event) => event.type === 'set-state')?.payload?.gopayHelperOrderCreatedAt > 0);
+  const executeEvent = events.find((event) => event.type === 'execute-script');
+  assert.equal(executeEvent.target.tabId, 77);
+  assert.equal(executeEvent.args[1], JSON.stringify(session));
+  const statePayload = events.find((event) => event.type === 'set-state')?.payload || {};
+  assert.equal(statePayload.plusCheckoutTabId, 77);
+  assert.equal(statePayload.plusCheckoutSource, 'gpc-helper');
+  assert.equal(statePayload.gpcPageStatus, 'prepared');
+  assert.equal(statePayload.gpcPageStatusText, '页面已准备');
   assert.equal(events.find((event) => event.type === 'complete')?.step, 'plus-checkout-create');
   assert.equal(events.find((event) => event.type === 'complete')?.payload?.plusCheckoutSource, 'gpc-helper');
 });
 
-
-test('GPC auto checkout only sends access token and API Key', async () => {
+test('GPC checkout prepare rejects missing card key before opening pages', async () => {
   const events = [];
-  const fetchCalls = [];
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async (message, level = 'info') => events.push({ type: 'log', message, level }),
-    chrome: {
-      tabs: {
-        create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
-        },
-        remove: async () => {},
-      },
-    },
-    completeNodeFromBackground: async (step, payload) => events.push({ type: 'complete', step, payload }),
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => url.endsWith('/api/gp/balance')
-          ? createGpcBalanceResponse({ auto_mode_enabled: true, remaining_uses: 998 })
-          : createGpcTaskResponse({
-              task_id: 'task_auto',
-              status: 'queued',
-              status_text: '排队中',
-              phone_mode: 'auto',
-              api_waiting_for: '',
-            }),
-      };
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => ({}),
-    setState: async (payload) => events.push({ type: 'set-state', payload }),
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await executor.executePlusCheckoutCreate({
-    plusPaymentMethod: 'gpc-helper',
-    gopayHelperPhoneMode: 'auto',
-    gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-    chatgptAccessToken: 'state-access-token',
-    gopayHelperApiKey: 'gpc_auto_123',
-  });
-
-  assert.equal(fetchCalls.length, 2);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-  assert.equal(fetchCalls[0].options.headers['X-API-Key'], 'gpc_auto_123');
-  assert.equal(fetchCalls[1].url, 'https://gpc.qlhazycoder.top/api/gp/tasks');
-  const helperPayload = JSON.parse(fetchCalls[1].options.body);
-  assert.deepEqual(helperPayload, {
-    access_token: 'state-access-token',
-    phone_mode: 'auto',
-  });
-  assert.equal(fetchCalls[1].options.headers['X-API-Key'], 'gpc_auto_123');
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'country_code'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'phone_number'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'otp_channel'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'pin'), false);
-  const statePayload = events.find((event) => event.type === 'set-state')?.payload || {};
-  assert.equal(statePayload.gopayHelperTaskId, 'task_auto');
-  assert.equal(Object.prototype.hasOwnProperty.call(statePayload, 'gopayHelperPhoneMode'), false);
-  assert.equal(statePayload.gopayHelperTaskStatus, 'queued');
-  assert.equal(events.find((event) => event.type === 'complete')?.step, 'plus-checkout-create');
-});
-
-test('GPC auto checkout keeps running when balance payload omits auto mode permission', async () => {
-  const events = [];
-  const fetchCalls = [];
   const executor = api.createPlusCheckoutCreateExecutor({
     addLog: async () => {},
     chrome: {
       tabs: {
         create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
+          events.push({ type: 'tab-create' });
+          throw new Error('should not open tab without card key');
         },
-        remove: async () => {},
       },
-    },
-    completeNodeFromBackground: async (step, payload) => events.push({ type: 'complete', step, payload }),
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => url.endsWith('/api/gp/balance')
-          ? createGpcBalanceResponse({ auto_mode_enabled: undefined, remaining_uses: 998 })
-          : createGpcTaskResponse({
-              task_id: 'task_auto_unknown_permission',
-              status: 'queued',
-              status_text: '排队中',
-              phone_mode: 'auto',
-              api_waiting_for: '',
-            }),
-      };
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => ({}),
-    setState: async (payload) => events.push({ type: 'set-state', payload }),
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await executor.executePlusCheckoutCreate({
-    plusPaymentMethod: 'gpc-helper',
-    gopayHelperPhoneMode: 'auto',
-    gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-    chatgptAccessToken: 'state-access-token',
-    gopayHelperApiKey: 'gpc_auto_123',
-  });
-
-  assert.equal(fetchCalls.length, 2);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-  assert.equal(fetchCalls[1].url, 'https://gpc.qlhazycoder.top/api/gp/tasks');
-  const helperPayload = JSON.parse(fetchCalls[1].options.body);
-  assert.equal(helperPayload.phone_mode, 'auto');
-  const statePayload = events.find((event) => event.type === 'set-state')?.payload || {};
-  assert.equal(statePayload.gopayHelperTaskId, 'task_auto_unknown_permission');
-  assert.equal(Object.prototype.hasOwnProperty.call(statePayload, 'gopayHelperPhoneMode'), false);
-  assert.equal(events.find((event) => event.type === 'complete')?.step, 'plus-checkout-create');
-});
-
-test('GPC auto checkout blocks API Keys without auto mode permission', async () => {
-  const fetchCalls = [];
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async () => {},
-    chrome: {
-      tabs: {
-        create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
+      scripting: {
+        executeScript: async () => {
+          throw new Error('should not inject without card key');
         },
-        remove: async () => {},
       },
     },
     completeNodeFromBackground: async () => {},
+    createAutomationTab: async () => {
+      events.push({ type: 'automation-tab-create' });
+      throw new Error('should not open tab without card key');
+    },
     ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => createGpcBalanceResponse({ auto_mode_enabled: false, remaining_uses: 998 }),
-      };
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => ({}),
-    setState: async () => {},
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await assert.rejects(
-    () => executor.executePlusCheckoutCreate({
-      plusPaymentMethod: 'gpc-helper',
-      gopayHelperPhoneMode: 'auto',
-      gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-      chatgptAccessToken: 'state-access-token',
-      gopayHelperApiKey: 'gpc_auto_disabled',
-    }),
-    /未开通自动模式/
-  );
-
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-});
-
-test('GPC checkout blocks exhausted API Keys before creating task', async () => {
-  const fetchCalls = [];
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async () => {},
-    chrome: {
-      tabs: {
-        create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
-        },
-        remove: async () => {},
-      },
-    },
-    completeNodeFromBackground: async () => {},
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => createGpcBalanceResponse({ auto_mode_enabled: false, remaining_uses: 0 }),
-      };
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => ({}),
-    setState: async () => {},
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await assert.rejects(
-    () => executor.executePlusCheckoutCreate({
-      plusPaymentMethod: 'gpc-helper',
-      gopayHelperPhoneMode: 'manual',
-      gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-      chatgptAccessToken: 'state-access-token',
-      gopayHelperPhoneNumber: '+8613800138000',
-      gopayHelperCountryCode: '+86',
-      gopayHelperPin: '123456',
-      gopayHelperApiKey: 'gpc_exhausted',
-    }),
-    /剩余次数不足/
-  );
-
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-});
-
-test('GPC checkout forwards selected SMS OTP channel', async () => {
-  const fetchCalls = [];
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async () => {},
-    chrome: {
-      tabs: {
-        create: async () => ({ id: 88 }),
-        remove: async () => {},
-      },
-    },
-    completeNodeFromBackground: async () => {},
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => url.endsWith('/api/gp/balance')
-          ? createGpcBalanceResponse({ auto_mode_enabled: false, remaining_uses: 998 })
-          : createGpcTaskResponse({ task_id: 'task_sms', status: 'active', phone_mode: 'manual', remote_stage: 'checkout_start' }),
-      };
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => ({ accessToken: 'session-access-token' }),
-    setState: async () => {},
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await executor.executePlusCheckoutCreate({
-    email: 'sms@example.com',
-    plusPaymentMethod: 'gpc-helper',
-    gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-    gopayHelperPhoneNumber: '+8613800138000',
-    gopayHelperCountryCode: '+86',
-    gopayHelperPin: '123456',
-    gopayHelperApiKey: 'gpc_sms',
-    gopayHelperOtpChannel: 'sms',
-  });
-
-  assert.equal(fetchCalls.length, 2);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-  assert.equal(fetchCalls[0].options.headers['X-API-Key'], 'gpc_sms');
-  const helperPayload = JSON.parse(fetchCalls[1].options.body);
-  assert.equal(helperPayload.phone_mode, 'manual');
-  assert.equal(helperPayload.otp_channel, 'sms');
-  assert.equal(fetchCalls[1].options.headers['X-API-Key'], 'gpc_sms');
-  assert.equal(Object.prototype.hasOwnProperty.call(helperPayload, 'card_key'), false);
-});
-
-test('GPC checkout surfaces unified queue API errors', async () => {
-  const fetchCalls = [];
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async () => {},
-    chrome: {
-      tabs: {
-        create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
-        },
-        remove: async () => {},
-      },
-    },
-    completeNodeFromBackground: async () => {},
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      if (url.endsWith('/api/gp/balance')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => createGpcBalanceResponse({ auto_mode_enabled: false, remaining_uses: 998 }),
-        };
-      }
-      return {
-        ok: false,
-        status: 400,
-        json: async () => ({
-          code: 400,
-          message: 'invalid_param',
-          data: { detail: 'access_token 无效' },
-        }),
-      };
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => {},
-    setState: async () => {},
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await assert.rejects(
-    () => executor.executePlusCheckoutCreate({
-      email: 'paid@example.com',
-      plusPaymentMethod: 'gpc-helper',
-      gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-      chatgptAccessToken: 'state-access-token',
-      gopayHelperPhoneNumber: '+8613800138000',
-      gopayHelperCountryCode: '+86',
-      gopayHelperPin: '123456',
-      gopayHelperApiKey: 'gpc_paid_456',
-    }),
-    /创建 GPC 订单失败：access_token 无效/
-  );
-
-  assert.equal(fetchCalls.length, 2);
-  assert.equal(fetchCalls[0].url, 'https://gpc.qlhazycoder.top/api/gp/balance');
-  assert.equal(fetchCalls[1].url, 'https://gpc.qlhazycoder.top/api/gp/tasks');
-  assert.equal(Object.prototype.hasOwnProperty.call(JSON.parse(fetchCalls[1].options.body), 'card_key'), false);
-  assert.equal(fetchCalls[1].options.headers['X-API-Key'], 'gpc_paid_456');
-});
-
-test('GPC checkout does not fall back to browser GoPay phone fields', async () => {
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async () => {},
-    chrome: {
-      tabs: {
-        create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
-        },
-        remove: async () => {},
-      },
-    },
-    completeNodeFromBackground: async () => {},
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async () => {
-      throw new Error('should not call helper API without helper phone');
-    },
+    queryTabsInAutomationWindow: async () => [],
     registerTab: async () => {},
     sendTabMessageUntilStopped: async () => {},
     setState: async () => {},
@@ -1317,55 +1050,9 @@ test('GPC checkout does not fall back to browser GoPay phone fields', async () =
   await assert.rejects(
     () => executor.executePlusCheckoutCreate({
       plusPaymentMethod: 'gpc-helper',
-      gopayHelperPhoneMode: 'manual',
-      gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-      chatgptAccessToken: 'state-access-token',
-      email: 'helper-phone-test@example.com',
-      gopayPhone: '+8613800138000',
-      gopayCountryCode: '+86',
-      gopayPin: '123456',
-      gopayHelperPhoneNumber: '',
-      gopayHelperPin: '123456',
-      gopayHelperApiKey: 'gpc_phone_test',
+      gpcCardKey: '',
     }),
-    /缺少手机号/
+    /缺少卡密/
   );
-});
-
-test('GPC checkout rejects missing API Key before calling helper API', async () => {
-  const executor = api.createPlusCheckoutCreateExecutor({
-    addLog: async () => {},
-    chrome: {
-      tabs: {
-        create: async () => {
-          throw new Error('should not open token tab when direct access token exists');
-        },
-        remove: async () => {},
-      },
-    },
-    completeNodeFromBackground: async () => {},
-    ensureContentScriptReadyOnTabUntilStopped: async () => {},
-    fetch: async () => {
-      throw new Error('should not call helper API without API Key');
-    },
-    registerTab: async () => {},
-    sendTabMessageUntilStopped: async () => {},
-    setState: async () => {},
-    sleepWithStop: async () => {},
-    waitForTabCompleteUntilStopped: async () => {},
-  });
-
-  await assert.rejects(
-    () => executor.executePlusCheckoutCreate({
-      plusPaymentMethod: 'gpc-helper',
-      gopayHelperApiUrl: 'https://gpc.qlhazycoder.top/',
-      chatgptAccessToken: 'state-access-token',
-      email: 'missing-card@example.com',
-      gopayHelperPhoneNumber: '+8613800138000',
-      gopayHelperCountryCode: '+86',
-      gopayHelperPin: '123456',
-      gopayHelperApiKey: '',
-    }),
-    /缺少 API Key/
-  );
+  assert.equal(events.length, 0);
 });

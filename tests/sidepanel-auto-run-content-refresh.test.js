@@ -134,7 +134,7 @@ async function refreshContributionContentHint() {
   events.push({ type: 'refresh' });
   ${refreshImpl ? 'return (' + refreshImpl + ')();' : 'return null;'}
 }
-async function ensureGpcApiKeyReadyForStart() {
+async function ensureGpcCardKeyReadyForStart() {
   return true;
 }
 ${bundle}
@@ -323,7 +323,7 @@ async function refreshContributionContentHint() {
   events.push({ type: 'refresh' });
   return null;
 }
-async function ensureGpcApiKeyReadyForStart() {
+async function ensureGpcCardKeyReadyForStart() {
   return true;
 }
 ${bundle}

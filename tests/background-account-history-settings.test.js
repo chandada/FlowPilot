@@ -58,7 +58,6 @@ test('background account history settings are normalized independently from hotm
     extractFunction('normalizeVerificationResendCount'),
     extractFunction('normalizePlusPaymentMethod'),
     extractFunction('normalizePlusAccountAccessStrategy'),
-    extractFunction('normalizeGpcHelperPhoneMode'),
     extractFunction('normalizePhoneSmsProvider'),
     extractFunction('normalizePhoneSmsProviderOrder'),
     extractFunction('normalizeSignupMethod'),
@@ -186,22 +185,23 @@ const self = {
     normalizeGoPayPin(value) {
       return String(value || '').trim().replace(/[^\\d]/g, '');
     },
-    normalizeGpcHelperBaseUrl(value) {
-      return String(value || '')
+    normalizeGpcBaseUrl(value) {
+      return String(value || 'https://gpc.qlhazycoder.top')
         .trim()
         .replace(/\\/+$/g, '')
         .replace(/\\/api\\/checkout\\/start$/i, '')
-        .replace(/\\/api\\/gopay\\/(?:otp|pin)$/i, '')
-        .replace(/\\/api\\/gp\\/tasks(?:\\/[^/?#]+)?(?:\\/(?:otp|pin|stop))?(?:\\?.*)?$/i, '')
-        .replace(/\\/api\\/gp\\/balance(?:\\?.*)?$/i, '')
+        .replace(/\\/api\\/web\\/card\\/balance(?:\\?.*)?$/i, '')
         .replace(/\\/api\\/card\\/balance(?:\\?.*)?$/i, '')
-        .replace(/\\/api\\/card\\/redeem-api-key(?:\\?.*)?$/i, '');
+        || 'https://gpc.qlhazycoder.top';
+    },
+    normalizeGpcCardKey(value) {
+      return String(value || '').trim().toUpperCase();
     },
   },
 };
 const PERSISTED_SETTING_DEFAULTS = {
   autoStepDelaySeconds: null,
-  gopayHelperApiUrl: 'https://gpc.qlhazycoder.top',
+  gpcBaseUrl: 'https://gpc.qlhazycoder.top',
   mailProvider: '163',
   heroSmsMinPrice: '',
   fiveSimMinPrice: '',
@@ -249,37 +249,19 @@ return {
   assert.equal(api.normalizePersistentSettingValue('plusAccountAccessStrategy', 'cpa_codex_session'), 'cpa_codex_session');
   assert.equal(api.normalizePersistentSettingValue('plusAccountAccessStrategy', 'unknown'), 'oauth');
   assert.equal(
-    api.normalizePersistentSettingValue('gopayHelperApiUrl', ' https://gpc.qlhazycoder.top/api/checkout/start '),
+    api.normalizePersistentSettingValue('gpcBaseUrl', ' https://gpc.qlhazycoder.top/api/checkout/start '),
     'https://gpc.qlhazycoder.top'
   );
   assert.equal(
-    api.normalizePersistentSettingValue('gopayHelperApiUrl', ' https://gpc.qlhazycoder.top/api/gp/tasks/task_1/pin '),
+    api.normalizePersistentSettingValue('gpcBaseUrl', ' https://gpc.qlhazycoder.top/api/web/card/balance?card_key=old '),
     'https://gpc.qlhazycoder.top'
   );
-  assert.equal(
-    api.normalizePersistentSettingValue('gopayHelperApiUrl', ' https://gpc.qlhazycoder.top/api/gp/balance '),
-    'https://gpc.qlhazycoder.top'
-  );
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperApiUrl', ''), 'https://gpc.qlhazycoder.top');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperApiKey', ' gpc-123 '), 'gpc-123');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperPhoneMode', 'auto'), 'auto');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperPhoneMode', 'builtin'), 'auto');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperPhoneMode', 'unknown'), 'manual');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperRemainingUses', '998'), 998);
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperAutoModeEnabled', 1), true);
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperApiKeyStatus', ' active '), 'active');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperCountryCode', ' 86 '), '+86');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperPhoneNumber', ' +86 138-0013-8000 '), '+8613800138000');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperPin', ' 12-34-56 '), '123456');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperOtpChannel', 'SMS'), 'sms');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperOtpChannel', 'unknown'), 'whatsapp');
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperLocalSmsHelperEnabled', 1), true);
-  assert.equal(
-    api.normalizePersistentSettingValue('gopayHelperLocalSmsHelperUrl', 'http://127.0.0.1:18767/otp?x=1'),
-    'http://127.0.0.1:18767'
-  );
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperLocalSmsTimeoutSeconds', '999'), 300);
-  assert.equal(api.normalizePersistentSettingValue('gopayHelperLocalSmsPollIntervalSeconds', '0'), 1);
+  assert.equal(api.normalizePersistentSettingValue('gpcBaseUrl', ''), 'https://gpc.qlhazycoder.top');
+  assert.equal(api.normalizePersistentSettingValue('gpcCardKey', ' gpc-6c9f1a32-45734795-914e6f00 '), 'GPC-6C9F1A32-45734795-914E6F00');
+  assert.equal(api.normalizePersistentSettingValue('gpcRemainingUses', '998'), 998);
+  assert.equal(api.normalizePersistentSettingValue('gpcCardStatus', ' active '), 'active');
+  assert.equal(api.normalizePersistentSettingValue('gpcPageStatus', ' running '), 'running');
+  assert.equal(api.normalizePersistentSettingValue('gpcPageStatusText', ' 页面启动 '), '页面启动');
   assert.equal(api.normalizePersistentSettingValue('verificationResendCount', '7'), 7);
   assert.equal(api.normalizePersistentSettingValue('verificationResendCount', '-1'), 0);
   assert.equal(api.normalizePersistentSettingValue('phoneVerificationReplacementLimit', '9'), 9);

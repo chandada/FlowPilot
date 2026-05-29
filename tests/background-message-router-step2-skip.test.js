@@ -233,7 +233,7 @@ function createRouter(overrides = {}) {
     verifyHotmailAccount: async () => {},
     refreshGpcCardBalance: overrides.refreshGpcCardBalance || (async (state, options) => {
       events.balanceRefreshes.push({ state, options });
-      return { balance: '余额 3', remainingUses: 3, autoModeEnabled: true, apiKeyStatus: 'active' };
+      return { balance: '余额 3', remainingUses: 3, cardStatus: 'active' };
     }),
   });
 
@@ -868,39 +868,11 @@ test('message router delegates Kiro manual step 4 without OpenAI auth-tab prereq
   assert.deepStrictEqual(events.executedSteps, [4]);
 });
 
-test('message router resolves GPC OTP manual confirmation without completing step early', async () => {
-  const state = {
-    plusManualConfirmationPending: true,
-    plusManualConfirmationRequestId: 'otp-request-1',
-    plusManualConfirmationStep: 7,
-    plusManualConfirmationMethod: 'gopay-otp',
-  };
-  const { router, events } = createRouter({ state });
-
-  const response = await router.handleMessage({
-    type: 'RESOLVE_PLUS_MANUAL_CONFIRMATION',
-    source: 'sidepanel',
-    payload: {
-      step: 7,
-      requestId: 'otp-request-1',
-      confirmed: true,
-      otp: ' 12-34 56 ',
-    },
-  }, {});
-
-  assert.deepStrictEqual(response, { ok: true });
-  assert.equal(events.notifyCompletions.length, 0);
-  assert.equal(events.stepStatuses.length, 0);
-  assert.equal(events.stateUpdates[0].gopayHelperResolvedOtp, '123456');
-  assert.equal(events.stateUpdates[0].plusManualConfirmationPending, false);
-  assert.deepStrictEqual(events.broadcasts[0], events.stateUpdates[0]);
-});
-
 test('message router refreshes GPC balance through explicit sidepanel message', async () => {
   const state = {
     plusPaymentMethod: 'gpc-helper',
-    gopayHelperApiUrl: 'http://localhost:18473/',
-    gopayHelperApiKey: 'state_api_key',
+    gpcBaseUrl: 'http://localhost:18473/',
+    gpcCardKey: 'GPC-11111111-22222222-33333333',
   };
   const { router, events } = createRouter({ state });
 
@@ -908,15 +880,15 @@ test('message router refreshes GPC balance through explicit sidepanel message', 
     type: 'REFRESH_GPC_CARD_BALANCE',
     source: 'sidepanel',
     payload: {
-      gopayHelperApiKey: 'payload_api_key',
+      gpcCardKey: 'GPC-6C9F1A32-45734795-914E6F00',
       reason: 'manual',
     },
   }, {});
 
-  assert.deepStrictEqual(response, { ok: true, balance: '余额 3', remainingUses: 3, autoModeEnabled: true, apiKeyStatus: 'active' });
+  assert.deepStrictEqual(response, { ok: true, balance: '余额 3', remainingUses: 3, cardStatus: 'active' });
   assert.equal(events.balanceRefreshes.length, 1);
-  assert.equal(events.balanceRefreshes[0].state.gopayHelperApiUrl, 'http://localhost:18473/');
-  assert.equal(events.balanceRefreshes[0].state.gopayHelperApiKey, 'payload_api_key');
+  assert.equal(events.balanceRefreshes[0].state.gpcBaseUrl, 'http://localhost:18473/');
+  assert.equal(events.balanceRefreshes[0].state.gpcCardKey, 'GPC-6C9F1A32-45734795-914E6F00');
   assert.deepStrictEqual(events.balanceRefreshes[0].options, { reason: 'manual' });
 });
 

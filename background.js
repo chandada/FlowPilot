@@ -578,7 +578,7 @@ const SUB2API_STEP1_RESPONSE_TIMEOUT_MS = 90000;
 const SUB2API_STEP9_RESPONSE_TIMEOUT_MS = 120000;
 const DEFAULT_SUB2API_URL = '';
 const DEFAULT_CODEX2API_URL = 'http://localhost:8080/admin/accounts';
-const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
+const DEFAULT_GPC_BASE_URL = 'https://gpc.qlhazycoder.top';
 const DEFAULT_SUB2API_GROUP_NAME = 'codex';
 const DEFAULT_SUB2API_PROXY_NAME = '';
 const DEFAULT_SUB2API_ACCOUNT_PRIORITY = 1;
@@ -859,11 +859,6 @@ function normalizePlusPaymentMethod(value = '') {
     return PLUS_PAYMENT_METHOD_GPC_HELPER;
   }
   return normalized === PLUS_PAYMENT_METHOD_GOPAY ? PLUS_PAYMENT_METHOD_GOPAY : PLUS_PAYMENT_METHOD_PAYPAL;
-}
-
-function normalizeGpcHelperPhoneMode(value = '') {
-  const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'auto' || normalized === 'builtin' ? 'auto' : 'manual';
 }
 
 function normalizeOpenAiContributionSource(value = '') {
@@ -1342,47 +1337,16 @@ const PERSISTED_SETTING_DEFAULTS = {
   gopayPhone: '',
   gopayOtp: '',
   gopayPin: '',
-  gopayHelperApiUrl: DEFAULT_GPC_HELPER_API_URL,
-  gopayHelperApiKey: '',
-  gopayHelperCardKey: '',
-  gopayHelperPhoneMode: 'manual',
-  gopayHelperPhoneNumber: '',
-  gopayHelperCountryCode: '+86',
-  gopayHelperPin: '',
-  gopayHelperOtpChannel: 'whatsapp',
-  gopayHelperLocalSmsHelperEnabled: false,
-  gopayHelperLocalSmsHelperUrl: 'http://127.0.0.1:18767',
-  gopayHelperLocalSmsTimeoutSeconds: 90,
-  gopayHelperLocalSmsPollIntervalSeconds: 2,
-  gopayHelperReferenceId: '',
-  gopayHelperGoPayGuid: '',
-  gopayHelperRedirectUrl: '',
-  gopayHelperNextAction: '',
-  gopayHelperFlowId: '',
-  gopayHelperChallengeId: '',
-  gopayHelperStartPayload: null,
-  gopayHelperTaskId: '',
-  gopayHelperTaskStatus: '',
-  gopayHelperStatusText: '',
-  gopayHelperRemoteStage: '',
-  gopayHelperApiWaitingFor: '',
-  gopayHelperApiInputDeadlineAt: '',
-  gopayHelperApiInputWaitSeconds: 0,
-  gopayHelperLastInputError: '',
-  gopayHelperOtpInvalidCount: 0,
-  gopayHelperFailureStage: '',
-  gopayHelperFailureDetail: '',
-  gopayHelperTaskPayload: null,
-  gopayHelperTaskProgressSignature: '',
-  gopayHelperTaskProgressAt: 0,
-  gopayHelperTaskProgressTaskId: '',
-  gopayHelperBalance: '',
-  gopayHelperBalancePayload: null,
-  gopayHelperBalanceUpdatedAt: 0,
-  gopayHelperBalanceError: '',
-  gopayHelperRemainingUses: 0,
-  gopayHelperAutoModeEnabled: false,
-  gopayHelperApiKeyStatus: '',
+  gpcBaseUrl: DEFAULT_GPC_BASE_URL,
+  gpcCardKey: '',
+  gpcBalance: '',
+  gpcBalancePayload: null,
+  gpcBalanceUpdatedAt: 0,
+  gpcBalanceError: '',
+  gpcRemainingUses: 0,
+  gpcCardStatus: '',
+  gpcPageStatus: '',
+  gpcPageStatusText: '',
   autoRunSkipFailures: false,
   autoRunFallbackThreadIntervalMinutes: 0,
   operationDelayEnabled: true,
@@ -3396,98 +3360,42 @@ function normalizePersistentSettingValue(key, value) {
       return self.GoPayUtils?.normalizeGoPayPin
         ? self.GoPayUtils.normalizeGoPayPin(value)
         : String(value || '');
-    case 'gopayHelperPhoneMode':
-      return self.GoPayUtils?.normalizeGpcHelperPhoneMode
-        ? self.GoPayUtils.normalizeGpcHelperPhoneMode(value)
-        : (String(value || '').trim().toLowerCase() === 'auto' || String(value || '').trim().toLowerCase() === 'builtin' ? 'auto' : 'manual');
-    case 'gopayHelperPhoneNumber':
-      return self.GoPayUtils?.normalizeGoPayPhone
-        ? self.GoPayUtils.normalizeGoPayPhone(value)
-        : String(value || '').trim();
-    case 'gopayHelperPin':
-      return self.GoPayUtils?.normalizeGoPayPin
-        ? self.GoPayUtils.normalizeGoPayPin(value)
-        : String(value || '');
-    case 'gopayHelperCountryCode':
-      return self.GoPayUtils?.normalizeGoPayCountryCode
-        ? self.GoPayUtils.normalizeGoPayCountryCode(value)
-        : String(value || '+86').trim();
-    case 'gopayHelperOtpChannel':
-      return self.GoPayUtils?.normalizeGpcOtpChannel
-        ? self.GoPayUtils.normalizeGpcOtpChannel(value)
-        : (String(value || '').trim().toLowerCase() === 'sms' ? 'sms' : 'whatsapp');
-    case 'gopayHelperLocalSmsHelperUrl':
-      return normalizeLocalHttpBaseUrl(
-        value,
-        PERSISTED_SETTING_DEFAULTS.gopayHelperLocalSmsHelperUrl || 'http://127.0.0.1:18767'
-      );
-    case 'gopayHelperLocalSmsTimeoutSeconds':
-      return normalizeBoundedIntegerSetting(
-        value,
-        PERSISTED_SETTING_DEFAULTS.gopayHelperLocalSmsTimeoutSeconds,
-        10,
-        300
-      );
-    case 'gopayHelperLocalSmsPollIntervalSeconds':
-      return normalizeBoundedIntegerSetting(
-        value,
-        PERSISTED_SETTING_DEFAULTS.gopayHelperLocalSmsPollIntervalSeconds,
-        1,
-        30
-      );
-    case 'gopayHelperApiUrl':
+    case 'gpcBaseUrl':
       {
-        const defaultGpcHelperApiUrl = PERSISTED_SETTING_DEFAULTS.gopayHelperApiUrl
-          || (typeof DEFAULT_GPC_HELPER_API_URL !== 'undefined' ? DEFAULT_GPC_HELPER_API_URL : 'https://gpc.qlhazycoder.top');
-        const normalizedGpcHelperApiUrl = self.GoPayUtils?.normalizeGpcHelperBaseUrl
-          ? self.GoPayUtils.normalizeGpcHelperBaseUrl(value || defaultGpcHelperApiUrl)
-          : String(value || defaultGpcHelperApiUrl).trim().replace(/\/+$/g, '');
-        if (!self.GoPayUtils?.normalizeGpcHelperBaseUrl) {
+        const defaultGpcBaseUrl = PERSISTED_SETTING_DEFAULTS.gpcBaseUrl
+          || (typeof DEFAULT_GPC_BASE_URL !== 'undefined' ? DEFAULT_GPC_BASE_URL : 'https://gpc.qlhazycoder.top');
+        const normalizedGpcBaseUrl = self.GoPayUtils?.normalizeGpcBaseUrl
+          ? self.GoPayUtils.normalizeGpcBaseUrl(value || defaultGpcBaseUrl)
+          : String(value || defaultGpcBaseUrl).trim().replace(/\/+$/g, '');
+        if (!self.GoPayUtils?.normalizeGpcBaseUrl) {
           try {
-            const parsed = new URL(normalizedGpcHelperApiUrl);
+            const parsed = new URL(normalizedGpcBaseUrl);
             const hostname = parsed.hostname.toLowerCase();
             if (hostname !== 'gpc.qlhazycoder.top' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-              return defaultGpcHelperApiUrl;
+              return defaultGpcBaseUrl;
             }
           } catch {
-            return defaultGpcHelperApiUrl;
+            return defaultGpcBaseUrl;
           }
         }
-        return normalizedGpcHelperApiUrl;
+        return normalizedGpcBaseUrl;
       }
-    case 'gopayHelperApiKey':
-    case 'gopayHelperCardKey':
-    case 'gopayHelperReferenceId':
-    case 'gopayHelperGoPayGuid':
-    case 'gopayHelperRedirectUrl':
-    case 'gopayHelperNextAction':
-    case 'gopayHelperFlowId':
-    case 'gopayHelperChallengeId':
-    case 'gopayHelperTaskId':
-    case 'gopayHelperTaskStatus':
-    case 'gopayHelperStatusText':
-    case 'gopayHelperRemoteStage':
-    case 'gopayHelperApiWaitingFor':
-    case 'gopayHelperApiInputDeadlineAt':
-    case 'gopayHelperLastInputError':
-    case 'gopayHelperFailureStage':
-    case 'gopayHelperFailureDetail':
-    case 'gopayHelperBalance':
-    case 'gopayHelperBalanceError':
-    case 'gopayHelperApiKeyStatus':
+    case 'gpcCardKey':
+      return self.GoPayUtils?.normalizeGpcCardKey
+        ? self.GoPayUtils.normalizeGpcCardKey(value)
+        : String(value || '').trim().toUpperCase();
+    case 'gpcBalance':
+    case 'gpcBalanceError':
+    case 'gpcCardStatus':
+    case 'gpcPageStatus':
+    case 'gpcPageStatusText':
       return String(value || '').trim();
-    case 'gopayHelperBalancePayload':
-    case 'gopayHelperStartPayload':
-    case 'gopayHelperTaskPayload':
+    case 'gpcBalancePayload':
       return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
-    case 'gopayHelperBalanceUpdatedAt':
-    case 'gopayHelperApiInputWaitSeconds':
-    case 'gopayHelperOtpInvalidCount':
-    case 'gopayHelperRemainingUses':
+    case 'gpcBalanceUpdatedAt':
+    case 'gpcRemainingUses':
       return Math.max(0, Number(value) || 0);
     case 'autoRunSkipFailures':
-    case 'gopayHelperLocalSmsHelperEnabled':
-    case 'gopayHelperAutoModeEnabled':
       return Boolean(value);
     case 'operationDelayEnabled':
       return true;
@@ -9637,7 +9545,7 @@ function getErrorMessage(error) {
     return loggingStatus.getErrorMessage(error);
   }
   return String(typeof error === 'string' ? error : error?.message || '')
-    .replace(/^GPC_TASK_ENDED::/i, '')
+    .replace(/^GPC_PAGE_FLOW_ENDED::/i, '')
     .replace(/^AUTO_RUN_STEP_IDLE_RESTART::/i, '');
 }
 
@@ -9872,9 +9780,9 @@ function isPlusCheckoutNonFreeTrialFailure(error) {
   return /PLUS_CHECKOUT_NON_FREE_TRIAL::|今日应付金额不是\s*0|没有免费试用资格|该账号已经开通过\s*ChatGPT\s*订阅套餐，不能重复订阅(?:。)?(?:（\s*checkout_order\s*）|\(\s*checkout_order\s*\))?/i.test(message);
 }
 
-function isGpcTaskEndedFailure(error) {
+function isGpcPageFlowEndedFailure(error) {
   const message = String(typeof error === 'string' ? error : error?.message || '');
-  return /GPC_TASK_ENDED::/i.test(message);
+  return /GPC_PAGE_FLOW_ENDED::/i.test(message);
 }
 
 function isGpcCheckoutRestartRequiredFailure(error) {
@@ -9884,10 +9792,10 @@ function isGpcCheckoutRestartRequiredFailure(error) {
   if (/PLUS_CHECKOUT_NON_FREE_TRIAL::|今日应付金额不是\s*0|没有免费试用资格/i.test(combinedMessage)) {
     return false;
   }
-  if (/GPC_TASK_ENDED::/i.test(rawMessage)) {
+  if (/GPC_PAGE_FLOW_ENDED::/i.test(rawMessage)) {
     return true;
   }
-  return /GPC\s*API\s*请求超时|GPC\s*任务状态超过\s*\d+\s*秒无进展|GPC[\s\S]*请重新创建任务|步骤\s*[67][\s\S]*GPC[\s\S]*(?:access\s*token|accessToken|任务轮询超时|请求超时|超时|timeout|timed\s*out|卡死|无响应|失败)|account\s+already\s+linked|GOPAY已经绑了订阅|(?:账号|账户|GoPay|GOPAY)[\s\S]*(?:已绑定|已经绑定|已绑|绑了订阅|绑定了订阅)|创建\s*GPC\s*订单失败[\s\S]*(?:任务已结束|任务结束|failed|expired|discarded|请求超时|timeout|timed\s*out)/i.test(message);
+  return /GPC\s*页面[\s\S]*(?:请重新准备|请求超时|超时|timeout|timed\s*out|卡死|无响应|失败|未检测到订阅完成|已尝试启动)|步骤\s*[67][\s\S]*GPC[\s\S]*(?:页面|请求超时|超时|timeout|timed\s*out|卡死|无响应|失败)|account\s+already\s+linked|GOPAY已经绑了订阅|(?:账号|账户|GoPay|GOPAY)[\s\S]*(?:已绑定|已经绑定|已绑|绑了订阅|绑定了订阅)/i.test(message);
 }
 
 function isPlusCheckoutRestartStep(step, stepExecutionKey = '', state = {}) {
@@ -10060,33 +9968,8 @@ function getDownstreamStateResets(step, state = {}) {
     plusManualConfirmationMethod: '',
     plusManualConfirmationTitle: '',
     plusManualConfirmationMessage: '',
-    gopayHelperReferenceId: '',
-    gopayHelperGoPayGuid: '',
-    gopayHelperRedirectUrl: '',
-    gopayHelperNextAction: '',
-    gopayHelperFlowId: '',
-    gopayHelperChallengeId: '',
-    gopayHelperStartPayload: null,
-    gopayHelperTaskId: '',
-    gopayHelperTaskStatus: '',
-    gopayHelperStatusText: '',
-    gopayHelperRemoteStage: '',
-    gopayHelperApiWaitingFor: '',
-    gopayHelperApiInputDeadlineAt: '',
-    gopayHelperApiInputWaitSeconds: 0,
-    gopayHelperLastInputError: '',
-    gopayHelperOtpInvalidCount: 0,
-    gopayHelperFailureStage: '',
-    gopayHelperFailureDetail: '',
-    gopayHelperTaskPayload: null,
-    gopayHelperOrderCreatedAt: 0,
-    gopayHelperTaskProgressSignature: '',
-    gopayHelperTaskProgressAt: 0,
-    gopayHelperTaskProgressTaskId: '',
-    gopayHelperPinPayload: null,
-    gopayHelperResolvedOtp: '',
-    gopayHelperOtpRequestId: '',
-    gopayHelperOtpReferenceId: '',
+    gpcPageStatus: '',
+    gpcPageStatusText: '',
   };
 
   if (step <= 1) {
@@ -10185,10 +10068,8 @@ function getDownstreamStateResets(step, state = {}) {
         plusManualConfirmationMethod: '',
         plusManualConfirmationTitle: '',
         plusManualConfirmationMessage: '',
-        gopayHelperResolvedOtp: '',
-        gopayHelperLastInputError: '',
-        gopayHelperOtpRequestId: '',
-        gopayHelperOtpReferenceId: '',
+        gpcPageStatus: '',
+        gpcPageStatusText: '',
       } : {}),
       ...(isApprovalNode ? {
         plusPaypalApprovedAt: null,
@@ -12581,49 +12462,44 @@ async function maybeSwitchIpProxyAfterAutoRunRoundSuccess(payload = {}) {
   return switchResult;
 }
 
-function resolveGpcHelperBaseUrl(apiUrl = '') {
-  if (self.GoPayUtils?.normalizeGpcHelperBaseUrl) {
-    return self.GoPayUtils.normalizeGpcHelperBaseUrl(apiUrl || DEFAULT_GPC_HELPER_API_URL);
+function resolveGpcBaseUrl(apiUrl = '') {
+  if (self.GoPayUtils?.normalizeGpcBaseUrl) {
+    return self.GoPayUtils.normalizeGpcBaseUrl(apiUrl || DEFAULT_GPC_BASE_URL);
   }
-  let normalized = String(apiUrl || DEFAULT_GPC_HELPER_API_URL).trim().replace(/\/+$/g, '');
+  let normalized = String(apiUrl || DEFAULT_GPC_BASE_URL).trim().replace(/\/+$/g, '');
   normalized = normalized.replace(/\/api\/checkout\/start$/i, '');
-  normalized = normalized.replace(/\/api\/gopay\/(?:otp|pin)$/i, '');
-  normalized = normalized.replace(/\/api\/gp\/tasks(?:\/[^/?#]+)?(?:\/(?:otp|pin|stop))?(?:\?.*)?$/i, '');
-  normalized = normalized.replace(/\/api\/gp\/balance(?:\?.*)?$/i, '');
+  normalized = normalized.replace(/\/api\/web\/card\/balance(?:\?.*)?$/i, '');
   normalized = normalized.replace(/\/api\/card\/balance(?:\?.*)?$/i, '');
-  normalized = normalized.replace(/\/api\/card\/redeem-api-key(?:\?.*)?$/i, '');
-  return normalized || DEFAULT_GPC_HELPER_API_URL;
+  return normalized || DEFAULT_GPC_BASE_URL;
 }
 
-function buildGpcApiKeyBalanceRequestUrl(apiUrl = '') {
-  if (self.GoPayUtils?.buildGpcApiKeyBalanceUrl) {
-    return self.GoPayUtils.buildGpcApiKeyBalanceUrl(apiUrl);
+function normalizeGpcCardKey(value = '') {
+  if (self.GoPayUtils?.normalizeGpcCardKey) {
+    return self.GoPayUtils.normalizeGpcCardKey(value);
   }
+  return String(value || '').trim().toUpperCase();
+}
+
+function isGpcCardKeyFormat(value = '') {
+  if (self.GoPayUtils?.isGpcCardKeyFormat) {
+    return self.GoPayUtils.isGpcCardKeyFormat(value);
+  }
+  return /^GPC-[A-F0-9]{8}-[A-F0-9]{8}-[A-F0-9]{8}$/.test(normalizeGpcCardKey(value));
+}
+
+function buildGpcCardBalanceRequestUrl(apiUrl = '', cardKey = '') {
   if (self.GoPayUtils?.buildGpcCardBalanceUrl) {
-    return self.GoPayUtils.buildGpcCardBalanceUrl(apiUrl);
+    return self.GoPayUtils.buildGpcCardBalanceUrl(apiUrl, cardKey);
   }
-  const baseUrl = resolveGpcHelperBaseUrl(apiUrl);
+  const baseUrl = resolveGpcBaseUrl(apiUrl);
   if (!baseUrl) {
     return '';
   }
-  return `${baseUrl}/api/gp/balance`;
+  const normalizedCardKey = normalizeGpcCardKey(cardKey);
+  return `${baseUrl}/api/web/card/balance${normalizedCardKey ? `?card_key=${encodeURIComponent(normalizedCardKey)}` : ''}`;
 }
 
-function buildGpcApiKeyHeaders(apiKey = '', extraHeaders = {}) {
-  if (self.GoPayUtils?.buildGpcApiKeyHeaders) {
-    return self.GoPayUtils.buildGpcApiKeyHeaders(apiKey, extraHeaders);
-  }
-  const headers = {
-    ...(extraHeaders && typeof extraHeaders === 'object' ? extraHeaders : {}),
-  };
-  const normalizedApiKey = String(apiKey || '').trim();
-  if (normalizedApiKey) {
-    headers['X-API-Key'] = normalizedApiKey;
-  }
-  return headers;
-}
-
-function formatGpcApiKeyBalancePayload(payload = {}) {
+function formatGpcCardBalancePayload(payload = {}) {
   if (self.GoPayUtils?.formatGpcBalancePayload) {
     return self.GoPayUtils.formatGpcBalancePayload(payload);
   }
@@ -12643,28 +12519,26 @@ function formatGpcApiKeyBalancePayload(payload = {}) {
   ].filter(Boolean).join('，');
 }
 
-async function refreshGpcApiKeyBalance(state = {}, options = {}) {
-  const apiUrl = resolveGpcHelperBaseUrl(state?.gopayHelperApiUrl || DEFAULT_GPC_HELPER_API_URL);
-  const apiKey = String(
-    state?.gopayHelperApiKey
-    || state?.gpcApiKey
-    || state?.apiKey
-    || ''
-  ).trim();
+async function refreshGpcCardBalance(state = {}, options = {}) {
+  const apiUrl = resolveGpcBaseUrl(state?.gpcBaseUrl || DEFAULT_GPC_BASE_URL);
+  const cardKey = normalizeGpcCardKey(state?.gpcCardKey || state?.cardKey || '');
   if (!apiUrl) {
-    throw new Error('缺少 GPC API 地址。');
+    throw new Error('缺少 GPC 页面地址。');
   }
-  if (!apiKey) {
-    throw new Error('缺少 GPC API Key。');
+  if (!cardKey) {
+    throw new Error('缺少 GPC 卡密。');
   }
-  const requestUrl = buildGpcApiKeyBalanceRequestUrl(apiUrl);
+  if (!isGpcCardKeyFormat(cardKey)) {
+    throw new Error('GPC 卡密格式不正确，应类似 GPC-6C9F1A32-45734795-914E6F00。');
+  }
+  const requestUrl = buildGpcCardBalanceRequestUrl(apiUrl, cardKey);
   if (!requestUrl) {
-    throw new Error('缺少 GPC API 地址。');
+    throw new Error('缺少 GPC 卡密查询接口。');
   }
 
   const response = await fetch(requestUrl, {
     method: 'GET',
-    headers: buildGpcApiKeyHeaders(apiKey, { Accept: 'application/json' }),
+    headers: { Accept: 'application/json' },
   });
   const rawText = await response.text();
   let payload = {};
@@ -12682,26 +12556,19 @@ async function refreshGpcApiKeyBalance(state = {}, options = {}) {
   const remainingUses = self.GoPayUtils?.getGpcBalanceRemainingUses
     ? self.GoPayUtils.getGpcBalanceRemainingUses(balanceData)
     : Math.max(0, Number(balanceData.remaining_uses ?? balanceData.remainingUses ?? balanceData.balance ?? balanceData.remaining) || 0);
-  const autoModeEnabled = self.GoPayUtils?.isGpcAutoModeEnabled
-    ? self.GoPayUtils.isGpcAutoModeEnabled(balanceData)
-    : Boolean(balanceData.auto_mode_enabled ?? balanceData.autoModeEnabled);
-  const apiKeyStatus = self.GoPayUtils?.getGpcApiKeyStatus
-    ? self.GoPayUtils.getGpcApiKeyStatus(balanceData)
+  const cardStatus = self.GoPayUtils?.getGpcCardStatus
+    ? self.GoPayUtils.getGpcCardStatus(balanceData)
     : String(balanceData.status || balanceData.card_status || balanceData.cardStatus || '').trim();
-  const balanceText = formatGpcApiKeyBalancePayload(payload) || rawText || '未知';
+  const balanceText = formatGpcCardBalancePayload(payload) || rawText || '未知';
   const updates = {
-    gopayHelperBalance: balanceText,
-    gopayHelperBalancePayload: Object.keys(balanceData).length > 0 ? balanceData : { raw: String(balancePayload || '') },
-    gopayHelperBalanceUpdatedAt: Date.now(),
-    gopayHelperBalanceError: '',
-    gopayHelperRemainingUses: Math.max(0, Number(remainingUses) || 0),
-    gopayHelperAutoModeEnabled: Boolean(autoModeEnabled),
-    gopayHelperApiKeyStatus: apiKeyStatus,
+    gpcCardKey: cardKey,
+    gpcBalance: balanceText,
+    gpcBalancePayload: Object.keys(balanceData).length > 0 ? balanceData : { raw: String(balancePayload || '') },
+    gpcBalanceUpdatedAt: Date.now(),
+    gpcBalanceError: '',
+    gpcRemainingUses: Math.max(0, Number(remainingUses) || 0),
+    gpcCardStatus: cardStatus,
   };
-  const flowId = String(balancePayload?.flow_id || balancePayload?.flowId || '').trim();
-  if (flowId) {
-    updates.gopayHelperFlowId = flowId;
-  }
 
   const unifiedOk = self.GoPayUtils?.isGpcUnifiedResponseOk
     ? self.GoPayUtils.isGpcUnifiedResponseOk(payload)
@@ -12710,10 +12577,10 @@ async function refreshGpcApiKeyBalance(state = {}, options = {}) {
     const detail = self.GoPayUtils?.extractGpcResponseErrorDetail
       ? self.GoPayUtils.extractGpcResponseErrorDetail(payload, response.status)
       : (payload?.data?.detail || payload?.error || payload?.message || payload?.detail || `HTTP ${response.status}`);
-    const errorUpdates = { ...updates, gopayHelperBalanceError: String(detail || '余额查询失败') };
+    const errorUpdates = { ...updates, gpcBalanceError: String(detail || 'GPC 卡密查询失败') };
     await setPersistentSettings(errorUpdates);
     broadcastDataUpdate(errorUpdates);
-    throw new Error(String(detail || '余额查询失败'));
+    throw new Error(String(detail || 'GPC 卡密查询失败'));
   }
 
   await setPersistentSettings(updates);
@@ -12721,22 +12588,19 @@ async function refreshGpcApiKeyBalance(state = {}, options = {}) {
   const reason = String(options?.reason || '').trim();
   await addLog(
     reason === 'round_success'
-      ? `GPC 余额已更新：${balanceText}`
-      : `GPC 余额查询成功：${balanceText}`,
+      ? `GPC 卡密剩余次数已更新：${balanceText}`
+      : `GPC 卡密查询成功：${balanceText}`,
     'info'
   );
   return {
     balance: balanceText,
     payload,
-    data: updates.gopayHelperBalancePayload,
-    remainingUses: updates.gopayHelperRemainingUses,
-    autoModeEnabled: updates.gopayHelperAutoModeEnabled,
-    apiKeyStatus: updates.gopayHelperApiKeyStatus,
-    updatedAt: updates.gopayHelperBalanceUpdatedAt,
+    data: updates.gpcBalancePayload,
+    remainingUses: updates.gpcRemainingUses,
+    cardStatus: updates.gpcCardStatus,
+    updatedAt: updates.gpcBalanceUpdatedAt,
   };
 }
-
-const refreshGpcCardBalance = refreshGpcApiKeyBalance;
 
 const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoRunController({
   addLog,
@@ -12764,7 +12628,7 @@ const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoR
   isAddPhoneAuthFailure,
   isPhoneSmsPlatformRateLimitFailure,
   isPlusCheckoutNonFreeTrialFailure,
-  isGpcTaskEndedFailure,
+  isGpcPageFlowEndedFailure,
   isKiroProxyFailure,
   isRestartCurrentAttemptError,
   isStep4Route405RecoveryLimitFailure,
@@ -13538,10 +13402,10 @@ async function runAutoSequenceFromNodeGraph(startNodeId, context = {}) {
           ? gpcCheckoutRestartCount
           : (isGoPayCheckoutStep ? goPayCheckoutRestartCount : plusCheckoutRestartCount);
         const checkoutLabel = isGpcCheckoutStep
-          ? 'GPC 任务'
+          ? 'GPC 页面流程'
           : (isGoPayCheckoutStep ? 'GoPay 订阅' : 'Plus Checkout');
         const recreateLabel = isGpcCheckoutStep
-          ? '重新创建 GPC 任务'
+          ? '重新准备 GPC 页面'
           : (isGoPayCheckoutStep ? '重新创建 GoPay 订阅' : '重新创建 Plus Checkout');
         await addLog(
           `节点 ${getNodeLabel(nodeId, latestState)}：检测到 ${checkoutLabel} 失败/卡住，准备回到节点 plus-checkout-create ${recreateLabel}（第 ${checkoutRestartCount} 次）。原因：${getErrorMessage(err)}`,

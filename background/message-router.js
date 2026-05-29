@@ -1181,7 +1181,6 @@
           const requestId = String(message.payload?.requestId || '').trim();
           const currentRequestId = String(currentState?.plusManualConfirmationRequestId || '').trim();
           const method = String(currentState?.plusManualConfirmationMethod || '').trim().toLowerCase();
-          const isGpcOtp = method === 'gopay-otp';
           if (!currentState?.plusManualConfirmationPending) {
             return { ok: true, ignored: true };
           }
@@ -1197,23 +1196,6 @@
             plusManualConfirmationTitle: '',
             plusManualConfirmationMessage: '',
           };
-
-          if (isGpcOtp && confirmed) {
-            const otp = String(message.payload?.otp || message.payload?.code || '').trim().replace(/[^\d]/g, '');
-            if (!otp) {
-              throw new Error('请输入 GPC OTP 验证码。');
-            }
-            const otpUpdates = {
-              ...clearManualConfirmationState,
-              gopayHelperResolvedOtp: otp,
-            };
-            await setState(otpUpdates);
-            if (typeof broadcastDataUpdate === 'function') {
-              broadcastDataUpdate(otpUpdates);
-            }
-            await addLog(`步骤 ${step}：已收到 GPC OTP，准备提交验证。`, 'ok');
-            return { ok: true };
-          }
 
           await setState(clearManualConfirmationState);
           if (typeof broadcastDataUpdate === 'function') {
@@ -1232,7 +1214,7 @@
 
           const cancelMessage = method === 'gopay'
             ? '已取消 GoPay 订阅确认'
-            : (isGpcOtp ? '已取消 GPC OTP 输入' : '已取消当前手动确认');
+            : '已取消当前手动确认';
           await setNodeStatus(confirmationNodeId, 'failed');
           await addLog(`步骤 ${step}：${cancelMessage}。`, 'warn');
           await appendManualAccountRunRecordIfNeeded(
@@ -1688,7 +1670,7 @@
 
         case 'REFRESH_GPC_CARD_BALANCE': {
           if (typeof refreshGpcCardBalance !== 'function') {
-            throw new Error('GPC API Key 余额查询能力尚未接入。');
+            throw new Error('GPC 卡密查询能力尚未接入。');
           }
           const state = await getState();
           const result = await refreshGpcCardBalance({
