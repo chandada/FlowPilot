@@ -53,7 +53,11 @@ test('sidepanel html exposes header repo and releases entry points', () => {
 
   assert.match(
     html,
-    /id="btn-repo-home"[\s\S]*title="打开 GitHub 仓库"/
+    /id="link-repo-home"[\s\S]*class="header-repo-link"[\s\S]*title="打开 GitHub 仓库"/
+  );
+  assert.doesNotMatch(
+    html,
+    /id="link-repo-home"[^>]*\bbtn\b/
   );
   assert.match(
     html,

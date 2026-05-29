@@ -25,7 +25,7 @@ const btnClearAccountRecords = document.getElementById('btn-clear-account-record
 const btnToggleAccountRecordsSelection = document.getElementById('btn-toggle-account-records-selection');
 const btnDeleteSelectedAccountRecords = document.getElementById('btn-delete-selected-account-records');
 const updateSection = document.getElementById('update-section');
-const btnRepoHome = document.getElementById('btn-repo-home');
+const linkRepoHome = document.getElementById('link-repo-home');
 const extensionUpdateStatus = document.getElementById('extension-update-status');
 const extensionVersionMeta = document.getElementById('extension-version-meta');
 const btnReleaseLog = document.getElementById('btn-release-log');
@@ -11218,7 +11218,7 @@ function initializeManualStepActions() {
     manualBtn.dataset.nodeId = nodeId;
     manualBtn.title = '跳过此节点';
     manualBtn.setAttribute('aria-label', `跳过节点 ${nodeId || step}`);
-    manualBtn.textContent = '跳过';
+    manualBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>';
     manualBtn.addEventListener('click', async (event) => {
       event.stopPropagation();
       try {
@@ -15411,7 +15411,8 @@ btnConfigMenu?.addEventListener('click', (event) => {
   toggleConfigMenu();
 });
 
-btnRepoHome?.addEventListener('click', () => {
+linkRepoHome?.addEventListener('click', (event) => {
+  event.preventDefault();
   openRepositoryHomePage();
 });
 

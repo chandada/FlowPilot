@@ -128,10 +128,22 @@ header {
   flex: 1;
 }
 
-.header-repo-btn {
+.header-repo-link {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  text-decoration: none;
   flex-shrink: 0;
 }
 
+.header-repo-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.header-repo-link:focus-visible,
 .header-version-link:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--blue) 28%, transparent);
   outline-offset: 2px;
@@ -2927,27 +2939,22 @@ header {
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  width: 76px;
+  width: 48px;
   flex-shrink: 0;
 }
 
 .step-manual-btn {
-  min-width: 48px;
-  min-height: 26px;
-  padding: 0 8px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   background: var(--bg-surface);
   color: var(--text-muted);
   cursor: pointer;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
   transition: all var(--transition);
 }
 .step-manual-btn:hover:not(:disabled) {
