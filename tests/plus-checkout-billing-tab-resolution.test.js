@@ -904,18 +904,30 @@ function createGpcPageHarness(states) {
   const pageStates = Array.isArray(states) ? [...states] : [];
   const clicks = [];
   const modeClicks = [];
+  let cardModeReady = false;
   return {
     clicks,
     modeClicks,
     run(details) {
       const source = String(details.func || '');
-      if (source.includes('cardModeButton.click')) {
-        modeClicks.push({ target: details.target?.tabId });
+      if (source.includes("findModeButton('卡密充值'")) {
+        if (!cardModeReady) {
+          modeClicks.push({ target: details.target?.tabId });
+          cardModeReady = true;
+          return [{
+            result: {
+              ok: true,
+              clicked: true,
+              isCardModeActive: false,
+              activeModeText: '卡密充值 使用付费卡密扣次充值',
+            },
+          }];
+        }
         return [{
           result: {
             ok: true,
-            clicked: true,
-            isCardModeActive: false,
+            clicked: false,
+            isCardModeActive: true,
             activeModeText: '卡密充值 使用付费卡密扣次充值',
           },
         }];

@@ -1423,16 +1423,51 @@ function FindProxyForURL(url, host) {
               ].join(' ');
               return /\b(active|selected|current|checked|on|true)\b/i.test(markerText);
             };
-            const candidates = Array.from(document.querySelectorAll('button, [role="button"], .design-mode-card, .mode-card, [class*="mode"]'));
-            const cardModeButton = candidates.find((element) => /卡密充值/.test(textOf(element)));
-            const freeModeButton = candidates.find((element) => /免费充值/.test(textOf(element)));
+            const modeSelector = 'button, [role="button"], .design-mode-card, .mode-card, [class*="mode-card"], [class*="recharge-card"], [class*="tab"], [class*="option"]';
+            const findModeButton = (label, oppositeLabel) => {
+              const directCandidates = Array.from(document.querySelectorAll(modeSelector));
+              const allCandidates = directCandidates.length
+                ? directCandidates
+                : Array.from(document.querySelectorAll('body *'));
+              const candidates = allCandidates
+                .filter(isVisible)
+                .map((element) => ({ element, text: textOf(element) }))
+                .filter(({ text }) => text.includes(label) && !text.includes(oppositeLabel) && text.length <= 120)
+                .sort((left, right) => left.text.length - right.text.length);
+              const target = candidates[0]?.element || null;
+              return target?.closest?.(modeSelector) || target;
+            };
+            const clickElement = (element) => {
+              element.scrollIntoView?.({ block: 'center', inline: 'center' });
+              element.focus?.();
+              const rect = typeof element.getBoundingClientRect === 'function' ? element.getBoundingClientRect() : null;
+              const centerTarget = rect && document.elementFromPoint
+                ? document.elementFromPoint(rect.left + (rect.width / 2), rect.top + (rect.height / 2))
+                : null;
+              const target = centerTarget && element.contains?.(centerTarget) ? centerTarget : element;
+              const fire = (type, EventCtor) => {
+                try {
+                  target.dispatchEvent?.(new EventCtor(type, { bubbles: true, cancelable: true, view: window }));
+                } catch {
+                  target.dispatchEvent?.(new Event(type, { bubbles: true, cancelable: true }));
+                }
+              };
+              const pointerEventCtor = window.PointerEvent || window.MouseEvent || Event;
+              const mouseEventCtor = window.MouseEvent || Event;
+              fire('pointerdown', pointerEventCtor);
+              fire('mousedown', mouseEventCtor);
+              fire('pointerup', pointerEventCtor);
+              fire('mouseup', mouseEventCtor);
+              target.click?.();
+            };
+            const cardModeButton = findModeButton('卡密充值', '免费充值');
+            const freeModeButton = findModeButton('免费充值', '卡密充值');
             const visibleCardInputs = Array.from(document.querySelectorAll('input.card-key-seg, input[placeholder*="XXXXXXXX"], input[maxlength="8"]'))
               .filter(isVisible);
             const isCardModeActive = Boolean(cardModeButton && hasActiveMarker(cardModeButton))
               || (visibleCardInputs.length > 0 && !(freeModeButton && hasActiveMarker(freeModeButton)));
             if (cardModeButton && !isCardModeActive) {
-              cardModeButton.scrollIntoView?.({ block: 'center', inline: 'center' });
-              cardModeButton.click?.();
+              clickElement(cardModeButton);
               return {
                 hasCardMode: true,
                 clickedCardMode: true,
@@ -1451,12 +1486,22 @@ function FindProxyForURL(url, host) {
         return results?.[0]?.result || {};
       };
 
-      const modeResult = await ensureCardMode();
+      let modeResult = null;
+      for (let attempt = 1; attempt <= 8; attempt += 1) {
+        modeResult = await ensureCardMode();
+        if (!modeResult.hasCardMode) {
+          throw new Error('步骤 6：未找到 GPC“卡密充值”模式入口。');
+        }
+        if (modeResult.isCardModeActive) {
+          break;
+        }
+        await sleepWithStop(modeResult.clickedCardMode ? 800 : 500);
+      }
       if (!modeResult.hasCardMode) {
         throw new Error('步骤 6：未找到 GPC“卡密充值”模式入口。');
       }
-      if (modeResult.clickedCardMode) {
-        await sleepWithStop(600);
+      if (!modeResult.isCardModeActive) {
+        throw new Error('步骤 6：GPC 页面切换到卡密充值模式超时。');
       }
 
       const results = await chrome.scripting.executeScript({
