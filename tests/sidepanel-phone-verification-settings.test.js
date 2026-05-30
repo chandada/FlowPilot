@@ -980,6 +980,10 @@ const MADAO_MODE_DIRECT = 'direct';
 const DEFAULT_MADAO_MODE = MADAO_MODE_ROUTING_PLAN;
 const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = ${JSON.stringify({
   'hero-sms': {
+    supportsReusableActivation: true,
+    supportsManualFreeReuse: true,
+    supportsFreeReusePreservation: true,
+    supportsAutomaticFreeReuse: true,
     rowKeys: [
       'rowHeroSmsCountry',
       'rowHeroSmsCountryFallback',
@@ -994,6 +998,10 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = ${JSON.stringify({
     ],
   },
   '5sim': {
+    supportsReusableActivation: true,
+    supportsManualFreeReuse: true,
+    supportsFreeReusePreservation: true,
+    supportsAutomaticFreeReuse: true,
     rowKeys: [
       'rowFiveSimApiKey',
       'rowFiveSimCountry',
@@ -1004,6 +1012,10 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = ${JSON.stringify({
     ],
   },
   nexsms: {
+    supportsReusableActivation: false,
+    supportsManualFreeReuse: false,
+    supportsFreeReusePreservation: false,
+    supportsAutomaticFreeReuse: false,
     rowKeys: [
       'rowNexSmsApiKey',
       'rowNexSmsCountry',
@@ -1012,6 +1024,10 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = ${JSON.stringify({
     ],
   },
   madao: {
+    supportsReusableActivation: false,
+    supportsManualFreeReuse: false,
+    supportsFreeReusePreservation: false,
+    supportsAutomaticFreeReuse: false,
     rowKeys: [
       'rowMaDaoBaseUrl',
       'rowMaDaoHttpSecret',
@@ -1051,6 +1067,8 @@ function normalizePhoneSmsProviderValue(value = '') {
   return DEFAULT_PHONE_SMS_PROVIDER_ORDER.includes(normalized) ? normalized : PHONE_SMS_PROVIDER_HERO_SMS;
 }
 function normalizeMaDaoModeValue(value = '') { return String(value || '').trim().toLowerCase() === MADAO_MODE_DIRECT ? MADAO_MODE_DIRECT : DEFAULT_MADAO_MODE; }
+${extractFunction('getPhoneSmsProviderUiDescriptor')}
+${extractFunction('readPhoneSmsProviderUiCapability')}
 ${extractFunction('getPhoneSmsProviderUiRowMap')}
 ${extractFunction('getProviderUiRows')}
 ${extractFunction('getAllProviderUiRows')}
@@ -1299,7 +1317,17 @@ return {
   assert.equal(api.rowFiveSimOperator.style.display, '');
   assert.equal(api.rowFiveSimProduct.style.display, '');
   assert.equal(api.rowPhoneSmsPreferredPriceControl.style.display, 'none');
-  assert.equal(api.rowPhoneSmsReuseControl.style.display, 'none');
+  assert.equal(api.rowPhoneSmsReuseControl.style.display, '');
+  assert.equal(api.rowFreePhoneReuseEnabled.style.display, '');
+  assert.equal(api.rowFreePhoneReuseAutoEnabled.style.display, '');
+  assert.equal(api.rowFreeReusablePhone.style.display, '');
+  assert.equal(api.rowHeroSmsPreferredActivation.style.display, '');
+  assert.equal(api.inputHeroSmsReuseEnabled.disabled, false);
+  assert.equal(api.inputFreePhoneReuseEnabled.disabled, false);
+  assert.equal(api.inputFreePhoneReuseAutoEnabled.disabled, false);
+  assert.equal(api.selectHeroSmsPreferredActivation.disabled, false);
+  assert.equal(api.inputFreeReusablePhone.disabled, false);
+  assert.equal(api.btnSaveFreeReusablePhone.disabled, false);
 
   api.setSelectedPhoneSmsProvider('nexsms');
   api.updatePhoneVerificationSettingsUI();
@@ -1309,6 +1337,21 @@ return {
   assert.equal(api.rowNexSmsServiceCode.style.display, '');
   assert.equal(api.rowHeroSmsMaxPrice.style.display, 'none');
   assert.equal(api.rowFiveSimOperator.style.display, 'none');
+  assert.equal(api.rowPhoneSmsReuseControl.style.display, 'none');
+  assert.equal(api.rowFreePhoneReuseEnabled.style.display, 'none');
+  assert.equal(api.rowFreePhoneReuseAutoEnabled.style.display, 'none');
+  assert.equal(api.rowFreeReusablePhone.style.display, 'none');
+  assert.equal(api.rowHeroSmsPreferredActivation.style.display, 'none');
+  assert.equal(api.inputHeroSmsReuseEnabled.checked, false);
+  assert.equal(api.inputHeroSmsReuseEnabled.disabled, true);
+  assert.equal(api.inputFreePhoneReuseEnabled.checked, false);
+  assert.equal(api.inputFreePhoneReuseEnabled.disabled, true);
+  assert.equal(api.inputFreePhoneReuseAutoEnabled.checked, false);
+  assert.equal(api.inputFreePhoneReuseAutoEnabled.disabled, true);
+  assert.equal(api.selectHeroSmsPreferredActivation.disabled, true);
+  assert.equal(api.inputFreeReusablePhone.disabled, true);
+  assert.equal(api.btnSaveFreeReusablePhone.disabled, true);
+  assert.equal(api.btnClearFreeReusablePhone.disabled, true);
 
   api.setSelectedPhoneSmsProvider('madao');
   api.selectMaDaoMode.value = 'routing_plan';
@@ -1323,6 +1366,11 @@ return {
   assert.equal(api.rowMaDaoAutoPickCountry.style.display, 'none');
   assert.equal(api.rowMaDaoReusePhone.style.display, 'none');
   assert.equal(api.rowMaDaoPriceRange.style.display, 'none');
+  assert.equal(api.rowPhoneSmsReuseControl.style.display, 'none');
+  assert.equal(api.rowFreePhoneReuseEnabled.style.display, 'none');
+  assert.equal(api.rowFreePhoneReuseAutoEnabled.style.display, 'none');
+  assert.equal(api.rowFreeReusablePhone.style.display, 'none');
+  assert.equal(api.rowHeroSmsPreferredActivation.style.display, 'none');
 
   api.selectMaDaoMode.value = 'direct';
   api.updatePhoneVerificationSettingsUI();
@@ -1336,6 +1384,8 @@ return {
   assert.equal(api.rowMaDaoAutoPickCountry.style.display, 'none');
   assert.equal(api.rowMaDaoReusePhone.style.display, 'none');
   assert.equal(api.rowMaDaoPriceRange.style.display, '');
+  assert.equal(api.rowFreeReusablePhone.style.display, 'none');
+  assert.equal(api.rowHeroSmsPreferredActivation.style.display, 'none');
 
   api.setExpanded(true);
   api.inputPhoneVerificationEnabled.checked = true;

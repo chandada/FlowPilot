@@ -29,21 +29,25 @@ test('background free reusable phone setter does not depend on module-scoped pho
   assert.match(setterBlock, /maxUses:\s*Math\.max\(1,\s*Math\.floor\(Number\(record\.maxUses\)\s*\|\|\s*3\)\)/);
 });
 
-test('background free reusable phone setter can recover local HeroSMS activation id by phone number', () => {
+test('background free reusable phone setter can recover local provider activation id by phone number', () => {
   const source = fs.readFileSync('background.js', 'utf8');
   const setterStart = source.indexOf('async function setFreeReusablePhoneActivation');
   const setterEnd = source.indexOf('// ============================================================\n// Tab Registry', setterStart);
   const setterBlock = source.slice(setterStart, setterEnd);
 
-  assert.match(source, /function findLocalHeroSmsActivationForPhone\(/);
+  assert.match(source, /function findLocalPhoneSmsActivationForPhone\(/);
+  assert.match(source, /function normalizeLocalPhoneSmsActivation\(/);
   assert.match(source, /state\.currentPhoneActivation/);
   assert.match(source, /state\.reusablePhoneActivation/);
   assert.match(source, /state\.signupPhoneActivation/);
   assert.match(source, /state\.signupPhoneCompletedActivation/);
   assert.match(source, /state\.phonePreferredActivation/);
   assert.match(source, /state\.phoneReusableActivationPool/);
-  assert.match(setterBlock, /findLocalHeroSmsActivationForPhone\(state,\s*phoneNumber\)/);
+  assert.match(setterBlock, /findLocalPhoneSmsActivationForPhone\(state,\s*phoneNumber,\s*provider\)/);
   assert.match(setterBlock, /activationId = String\(\s*record\.activationId[\s\S]*localActivation\?\.activationId/);
+  assert.match(setterBlock, /activationProvider = normalizePhoneSmsProvider\(/);
+  assert.match(setterBlock, /provider:\s*activationProvider/);
+  assert.match(setterBlock, /countryCode:\s*countryId/);
   assert.match(setterBlock, /manualOnly:\s*!activationId/);
 });
 

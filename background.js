@@ -8748,7 +8748,7 @@ function phoneNumbersMatch(left = '', right = '') {
   return Boolean(leftDigits && rightDigits && leftDigits === rightDigits);
 }
 
-function normalizeLocalHeroSmsActivation(record) {
+function normalizeLocalPhoneSmsActivation(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     return null;
   }
@@ -8757,20 +8757,20 @@ function normalizeLocalHeroSmsActivation(record) {
   if (!activationId || !phoneNumber) {
     return null;
   }
-  const rawProvider = String(record.provider ?? record.smsProvider ?? '').trim();
-  const provider = rawProvider ? normalizePhoneSmsProvider(rawProvider) : PHONE_SMS_PROVIDER_HERO;
-  if (provider !== PHONE_SMS_PROVIDER_HERO) {
-    return null;
-  }
+  const provider = normalizePhoneSmsProvider(record.provider ?? record.smsProvider ?? DEFAULT_PHONE_SMS_PROVIDER);
   const countryId = Math.max(
     0,
     Math.floor(Number(record.countryId ?? record.country ?? record.countryCode) || 0)
   );
   const countryLabel = String(record.countryLabel || record.label || '').trim();
-  const serviceCode = String(record.serviceCode || record.service || HERO_SMS_SERVICE_CODE).trim() || HERO_SMS_SERVICE_CODE;
+  const serviceCode = String(
+    record.serviceCode
+    || record.service
+    || (provider === PHONE_SMS_PROVIDER_FIVE_SIM ? DEFAULT_FIVE_SIM_PRODUCT : HERO_SMS_SERVICE_CODE)
+  ).trim() || HERO_SMS_SERVICE_CODE;
   return {
     ...record,
-    provider: PHONE_SMS_PROVIDER_HERO,
+    provider,
     activationId,
     phoneNumber,
     serviceCode,
@@ -8779,7 +8779,8 @@ function normalizeLocalHeroSmsActivation(record) {
   };
 }
 
-function findLocalHeroSmsActivationForPhone(state = {}, phoneNumber = '') {
+function findLocalPhoneSmsActivationForPhone(state = {}, phoneNumber = '', provider = DEFAULT_PHONE_SMS_PROVIDER) {
+  const preferredProvider = normalizePhoneSmsProvider(provider);
   const candidates = [
     state.currentPhoneActivation,
     state.reusablePhoneActivation,
@@ -8792,13 +8793,16 @@ function findLocalHeroSmsActivationForPhone(state = {}, phoneNumber = '') {
   if (Array.isArray(state.phoneReusableActivationPool)) {
     candidates.push(...state.phoneReusableActivationPool);
   }
+  const matches = [];
   for (const candidate of candidates) {
-    const normalized = normalizeLocalHeroSmsActivation(candidate);
+    const normalized = normalizeLocalPhoneSmsActivation(candidate);
     if (normalized && phoneNumbersMatch(normalized.phoneNumber, phoneNumber)) {
-      return normalized;
+      matches.push(normalized);
     }
   }
-  return null;
+  return matches.find((activation) => normalizePhoneSmsProvider(activation.provider) === preferredProvider)
+    || matches[0]
+    || null;
 }
 
 async function setFreeReusablePhoneActivation(record = {}) {
@@ -8810,7 +8814,20 @@ async function setFreeReusablePhoneActivation(record = {}) {
   if (isPhoneSignupIdentityStateForReuse(state)) {
     throw new Error('\u624b\u673a\u53f7\u6ce8\u518c\u6a21\u5f0f\u4e0b\u4e0d\u80fd\u8bb0\u5f55\u767d\u5ad6\u590d\u7528\u624b\u673a\u53f7\uff0c\u8bf7\u5207\u6362\u90ae\u7bb1\u6ce8\u518c\u540e\u518d\u4f7f\u7528\u3002');
   }
-  const localActivation = findLocalHeroSmsActivationForPhone(state, phoneNumber);
+  const provider = normalizePhoneSmsProvider(record.provider || state.phoneSmsProvider || DEFAULT_PHONE_SMS_PROVIDER);
+  if (provider !== PHONE_SMS_PROVIDER_HERO && provider !== PHONE_SMS_PROVIDER_FIVE_SIM) {
+    throw new Error(`${provider} 当前不支持本地白嫖号码复用。`);
+  }
+  const localActivation = findLocalPhoneSmsActivationForPhone(state, phoneNumber, provider);
+  const activationProvider = normalizePhoneSmsProvider(
+    localActivation?.provider
+    || record.provider
+    || state.phoneSmsProvider
+    || DEFAULT_PHONE_SMS_PROVIDER
+  );
+  if (activationProvider !== PHONE_SMS_PROVIDER_HERO && activationProvider !== PHONE_SMS_PROVIDER_FIVE_SIM) {
+    throw new Error(`${activationProvider} 当前不支持本地白嫖号码复用。`);
+  }
   const activationId = String(
     record.activationId
     || record.id
@@ -8818,34 +8835,47 @@ async function setFreeReusablePhoneActivation(record = {}) {
     || localActivation?.activationId
     || ''
   ).trim();
-  const inferredCountry = inferHeroSmsCountryFromPhoneNumber(phoneNumber);
+  const inferredCountry = activationProvider === PHONE_SMS_PROVIDER_HERO
+    ? inferHeroSmsCountryFromPhoneNumber(phoneNumber)
+    : null;
   const hasExplicitCountry = Number.isFinite(Number(record.countryId)) && Number(record.countryId) > 0;
-  const countryId = Math.max(
-    1,
-    Math.floor(
-      Number(record.countryId)
-      || Number(localActivation?.countryId)
-      || Number(inferredCountry?.id)
-      || Number(state.heroSmsCountryId)
-      || HERO_SMS_COUNTRY_ID
-    )
-  );
-  const stateCountryLabel = Math.floor(Number(state.heroSmsCountryId) || 0) === countryId
+  const fallbackCountryId = activationProvider === PHONE_SMS_PROVIDER_FIVE_SIM
+    ? String(state.fiveSimCountryId || DEFAULT_FIVE_SIM_COUNTRY_ORDER[0] || '').trim()
+    : HERO_SMS_COUNTRY_ID;
+  const rawCountryId = record.countryId
+    || localActivation?.countryId
+    || inferredCountry?.id
+    || fallbackCountryId;
+  const countryId = activationProvider === PHONE_SMS_PROVIDER_FIVE_SIM
+    ? String(rawCountryId || fallbackCountryId).trim()
+    : Math.max(1, Math.floor(Number(rawCountryId) || HERO_SMS_COUNTRY_ID));
+  const stateCountryLabel = activationProvider === PHONE_SMS_PROVIDER_HERO
+    && Math.floor(Number(state.heroSmsCountryId) || 0) === countryId
     ? String(state.heroSmsCountryLabel || '').trim()
+    : '';
+  const fiveSimCountryLabel = activationProvider === PHONE_SMS_PROVIDER_FIVE_SIM
+    && String(state.fiveSimCountryId || '').trim() === String(countryId)
+    ? String(state.fiveSimCountryLabel || '').trim()
     : '';
   const countryLabel = String(
     record.countryLabel
-    || (Number(localActivation?.countryId) === countryId ? localActivation?.countryLabel : '')
+    || (String(localActivation?.countryId || '') === String(countryId) ? localActivation?.countryLabel : '')
     || (!hasExplicitCountry && inferredCountry?.id === countryId ? inferredCountry.label : '')
     || stateCountryLabel
-    || (countryId === HERO_SMS_COUNTRY_ID ? HERO_SMS_COUNTRY_LABEL : `Country #${countryId}`)
+    || fiveSimCountryLabel
+    || (activationProvider === PHONE_SMS_PROVIDER_HERO && countryId === HERO_SMS_COUNTRY_ID ? HERO_SMS_COUNTRY_LABEL : `Country #${countryId}`)
   ).trim();
   const activation = {
     ...(activationId ? { activationId } : {}),
     phoneNumber,
-    provider: PHONE_SMS_PROVIDER_HERO,
-    serviceCode: String(record.serviceCode || localActivation?.serviceCode || HERO_SMS_SERVICE_CODE).trim() || HERO_SMS_SERVICE_CODE,
+    provider: activationProvider,
+    serviceCode: String(
+      record.serviceCode
+      || localActivation?.serviceCode
+      || (activationProvider === PHONE_SMS_PROVIDER_FIVE_SIM ? DEFAULT_FIVE_SIM_PRODUCT : HERO_SMS_SERVICE_CODE)
+    ).trim() || HERO_SMS_SERVICE_CODE,
     countryId,
+    ...(activationProvider === PHONE_SMS_PROVIDER_FIVE_SIM ? { countryCode: countryId } : {}),
     ...(countryLabel ? { countryLabel } : {}),
     successfulUses: Math.max(0, Math.floor(Number(record.successfulUses) || 0)),
     maxUses: Math.max(1, Math.floor(Number(record.maxUses) || 3)),
@@ -8855,10 +8885,11 @@ async function setFreeReusablePhoneActivation(record = {}) {
   };
   await setState({ freeReusablePhoneActivation: activation });
   broadcastDataUpdate({ freeReusablePhoneActivation: activation });
+  const providerLabel = activationProvider === PHONE_SMS_PROVIDER_FIVE_SIM ? '5sim' : 'HeroSMS';
   await addLog(
     activationId
       ? `已手动记录白嫖复用手机号 ${phoneNumber}（#${activationId}）。`
-      : `已手动记录白嫖复用手机号 ${phoneNumber}。未填写 HeroSMS 激活 ID，仅支持手动填号复用。`,
+      : `已手动记录白嫖复用手机号 ${phoneNumber}。未填写 ${providerLabel} 激活 ID，仅支持手动填号复用。`,
     'ok'
   );
   return { ok: true, freeReusablePhoneActivation: activation };

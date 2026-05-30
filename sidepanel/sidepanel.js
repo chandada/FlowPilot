@@ -703,6 +703,10 @@ let maDaoCountryOptions = [];
 let maDaoOperatorOptions = [];
 const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = Object.freeze({
   [PHONE_SMS_PROVIDER_HERO]: Object.freeze({
+    supportsReusableActivation: true,
+    supportsManualFreeReuse: true,
+    supportsFreeReusePreservation: true,
+    supportsAutomaticFreeReuse: true,
     rowKeys: Object.freeze([
       'rowHeroSmsCountry',
       'rowHeroSmsCountryFallback',
@@ -717,6 +721,10 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = Object.freeze({
     ]),
   }),
   [PHONE_SMS_PROVIDER_FIVE_SIM]: Object.freeze({
+    supportsReusableActivation: true,
+    supportsManualFreeReuse: true,
+    supportsFreeReusePreservation: true,
+    supportsAutomaticFreeReuse: true,
     rowKeys: Object.freeze([
       'rowFiveSimApiKey',
       'rowFiveSimCountry',
@@ -727,6 +735,10 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = Object.freeze({
     ]),
   }),
   [PHONE_SMS_PROVIDER_NEXSMS]: Object.freeze({
+    supportsReusableActivation: false,
+    supportsManualFreeReuse: false,
+    supportsFreeReusePreservation: false,
+    supportsAutomaticFreeReuse: false,
     rowKeys: Object.freeze([
       'rowNexSmsApiKey',
       'rowNexSmsCountry',
@@ -735,6 +747,10 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = Object.freeze({
     ]),
   }),
   [PHONE_SMS_PROVIDER_MADAO]: Object.freeze({
+    supportsReusableActivation: false,
+    supportsManualFreeReuse: false,
+    supportsFreeReusePreservation: false,
+    supportsAutomaticFreeReuse: false,
     rowKeys: Object.freeze([
       'rowMaDaoBaseUrl',
       'rowMaDaoHttpSecret',
@@ -752,6 +768,20 @@ const PHONE_SMS_PROVIDER_UI_DESCRIPTORS = Object.freeze({
   }),
 });
 const HERO_SMS_COUNTRY_SELECTION_MAX = 3;
+
+function getPhoneSmsProviderUiDescriptor(provider = DEFAULT_PHONE_SMS_PROVIDER) {
+  const normalizedProvider = normalizePhoneSmsProviderValue(provider);
+  return PHONE_SMS_PROVIDER_UI_DESCRIPTORS[normalizedProvider]
+    || PHONE_SMS_PROVIDER_UI_DESCRIPTORS[PHONE_SMS_PROVIDER_HERO];
+}
+
+function readPhoneSmsProviderUiCapability(provider = DEFAULT_PHONE_SMS_PROVIDER, capabilityName = '', fallback = false) {
+  const descriptor = getPhoneSmsProviderUiDescriptor(provider);
+  if (Object.prototype.hasOwnProperty.call(descriptor, capabilityName)) {
+    return Boolean(descriptor[capabilityName]);
+  }
+  return Boolean(fallback);
+}
 
 function getPhoneSmsProviderUiRowMap() {
   return {
@@ -788,7 +818,7 @@ function getPhoneSmsProviderUiRowMap() {
 function getProviderUiRows(provider = DEFAULT_PHONE_SMS_PROVIDER) {
   const rowMap = getPhoneSmsProviderUiRowMap();
   const normalizedProvider = normalizePhoneSmsProviderValue(provider);
-  const descriptor = PHONE_SMS_PROVIDER_UI_DESCRIPTORS[normalizedProvider] || PHONE_SMS_PROVIDER_UI_DESCRIPTORS[PHONE_SMS_PROVIDER_HERO];
+  const descriptor = getPhoneSmsProviderUiDescriptor(normalizedProvider);
   const rowKeys = [...(descriptor.rowKeys || [])];
   if (normalizedProvider === PHONE_SMS_PROVIDER_MADAO) {
     const mode = typeof selectMaDaoMode !== 'undefined' && selectMaDaoMode
@@ -819,12 +849,20 @@ function getAllProviderUiRows() {
 
 function updateProviderPriceControls(provider = DEFAULT_PHONE_SMS_PROVIDER, showSettings = false) {
   const normalizedProvider = normalizePhoneSmsProviderValue(provider);
-  const showHeroOnlyControls = showSettings && normalizedProvider === PHONE_SMS_PROVIDER_HERO_SMS;
-  [rowPhoneSmsPreferredPriceControl, rowPhoneSmsReuseControl].forEach((row) => {
-    if (row) {
-      row.style.display = showHeroOnlyControls ? '' : 'none';
-    }
-  });
+  if (rowPhoneSmsPreferredPriceControl) {
+    rowPhoneSmsPreferredPriceControl.style.display = showSettings && normalizedProvider === PHONE_SMS_PROVIDER_HERO_SMS
+      ? ''
+      : 'none';
+  }
+  if (rowPhoneSmsReuseControl) {
+    rowPhoneSmsReuseControl.style.display = showSettings && readPhoneSmsProviderUiCapability(
+      normalizedProvider,
+      'supportsReusableActivation',
+      false
+    )
+      ? ''
+      : 'none';
+  }
 }
 const DEFAULT_HERO_SMS_OPERATOR = 'any';
 const HERO_SMS_OPERATORS_URL = 'https://hero-sms.com/stubs/handler_api.php?action=getOperators';
@@ -10541,6 +10579,26 @@ function updatePhoneVerificationSettingsUI() {
       : normalizePhoneSmsProviderValue(selectPhoneSmsProvider?.value || latestState?.phoneSmsProvider || heroProviderValue)
   );
   const heroProvider = provider === heroProviderValue;
+  const providerSupportsReusableActivation = readPhoneSmsProviderUiCapability(
+    provider,
+    'supportsReusableActivation',
+    false
+  );
+  const providerSupportsManualFreeReuse = readPhoneSmsProviderUiCapability(
+    provider,
+    'supportsManualFreeReuse',
+    false
+  );
+  const providerSupportsFreeReusePreservation = readPhoneSmsProviderUiCapability(
+    provider,
+    'supportsFreeReusePreservation',
+    false
+  );
+  const providerSupportsAutomaticFreeReuse = readPhoneSmsProviderUiCapability(
+    provider,
+    'supportsAutomaticFreeReuse',
+    false
+  );
   if (rowPhoneVerificationEnabled) {
     rowPhoneVerificationEnabled.style.display = canShowPhoneSettings ? '' : 'none';
   }
@@ -10588,10 +10646,10 @@ function updatePhoneVerificationSettingsUI() {
     rowPhoneSignupReloginAfterBindEmail.style.display = showPhoneSignupReloginAfterBindEmail ? '' : 'none';
   }
   if (typeof rowFreePhoneReuseEnabled !== 'undefined' && rowFreePhoneReuseEnabled) {
-    rowFreePhoneReuseEnabled.style.display = showSettings && heroProvider ? '' : 'none';
+    rowFreePhoneReuseEnabled.style.display = showSettings && providerSupportsFreeReusePreservation ? '' : 'none';
   }
   if (typeof rowFreePhoneReuseAutoEnabled !== 'undefined' && rowFreePhoneReuseAutoEnabled) {
-    rowFreePhoneReuseAutoEnabled.style.display = showSettings && heroProvider ? '' : 'none';
+    rowFreePhoneReuseAutoEnabled.style.display = showSettings && providerSupportsAutomaticFreeReuse ? '' : 'none';
   }
   const phoneSignupReuseLocked = typeof isPhoneSignupReuseLocked === 'function'
     ? isPhoneSignupReuseLocked(latestState, {
@@ -10623,15 +10681,21 @@ function updatePhoneVerificationSettingsUI() {
     rowPhoneSignupReloginAfterBindEmail.classList.toggle('is-disabled', settingsLocked || !showPhoneSignupReloginAfterBindEmail);
   }
   const freePhoneReuseEnabled = Boolean(
-    heroProvider
+    providerSupportsFreeReusePreservation
     && showSettings
     && !phoneSignupReuseLocked
     && typeof inputFreePhoneReuseEnabled !== 'undefined'
     && inputFreePhoneReuseEnabled?.checked
   );
-  const freePhoneReuseAutoAvailable = showSettings && heroProvider && !phoneSignupReuseLocked && freePhoneReuseEnabled;
+  const freePhoneReuseAutoAvailable = showSettings
+    && providerSupportsAutomaticFreeReuse
+    && !phoneSignupReuseLocked
+    && freePhoneReuseEnabled;
   if (typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled) {
-    inputHeroSmsReuseEnabled.disabled = settingsLocked || phoneSignupReuseLocked;
+    inputHeroSmsReuseEnabled.disabled = settingsLocked || phoneSignupReuseLocked || !providerSupportsReusableActivation;
+    if (!providerSupportsReusableActivation) {
+      inputHeroSmsReuseEnabled.checked = false;
+    }
   }
   if (typeof inputFreePhoneReuseAutoEnabled !== 'undefined' && inputFreePhoneReuseAutoEnabled) {
     inputFreePhoneReuseAutoEnabled.disabled = settingsLocked || phoneSignupReuseLocked || !freePhoneReuseAutoAvailable;
@@ -10640,17 +10704,32 @@ function updatePhoneVerificationSettingsUI() {
     }
   }
   setFreePhoneReuseControlsLocked(settingsLocked || phoneSignupReuseLocked);
+  if (typeof inputFreePhoneReuseEnabled !== 'undefined' && inputFreePhoneReuseEnabled) {
+    inputFreePhoneReuseEnabled.disabled = settingsLocked || phoneSignupReuseLocked || !providerSupportsFreeReusePreservation;
+    if (!providerSupportsFreeReusePreservation) {
+      inputFreePhoneReuseEnabled.checked = false;
+    }
+  }
+  if (typeof inputFreePhoneReuseAutoEnabled !== 'undefined' && inputFreePhoneReuseAutoEnabled) {
+    inputFreePhoneReuseAutoEnabled.disabled = settingsLocked
+      || phoneSignupReuseLocked
+      || !providerSupportsAutomaticFreeReuse
+      || !freePhoneReuseAutoAvailable;
+    if (!providerSupportsAutomaticFreeReuse || !freePhoneReuseAutoAvailable) {
+      inputFreePhoneReuseAutoEnabled.checked = false;
+    }
+  }
   if (typeof selectHeroSmsPreferredActivation !== 'undefined' && selectHeroSmsPreferredActivation) {
-    selectHeroSmsPreferredActivation.disabled = settingsLocked || phoneSignupReuseLocked;
+    selectHeroSmsPreferredActivation.disabled = settingsLocked || phoneSignupReuseLocked || !providerSupportsReusableActivation;
   }
   if (typeof inputFreeReusablePhone !== 'undefined' && inputFreeReusablePhone) {
-    inputFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked;
+    inputFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked || !providerSupportsManualFreeReuse;
   }
   if (typeof btnSaveFreeReusablePhone !== 'undefined' && btnSaveFreeReusablePhone) {
-    btnSaveFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked;
+    btnSaveFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked || !providerSupportsManualFreeReuse;
   }
   if (typeof btnClearFreeReusablePhone !== 'undefined' && btnClearFreeReusablePhone) {
-    btnClearFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked;
+    btnClearFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked || !providerSupportsFreeReusePreservation;
   }
   const heroSmsReuseRow = typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled?.closest
     ? inputHeroSmsReuseEnabled.closest('.hero-sms-price-control')
@@ -10676,18 +10755,24 @@ function updatePhoneVerificationSettingsUI() {
     rowFreePhoneReuseAutoEnabled.classList.toggle('is-disabled', phoneSignupReuseLocked || !freePhoneReuseAutoAvailable);
   }
   const runtimeVisible = enabled;
+  const reuseRuntimeVisible = runtimeVisible && providerSupportsReusableActivation;
+  const freeReusablePhoneVisible = runtimeVisible && providerSupportsFreeReusePreservation;
   [
     typeof rowHeroSmsRuntimePair !== 'undefined' ? rowHeroSmsRuntimePair : null,
     typeof rowHeroSmsCurrentNumber !== 'undefined' ? rowHeroSmsCurrentNumber : null,
     typeof rowHeroSmsCurrentCountdown !== 'undefined' ? rowHeroSmsCurrentCountdown : null,
     typeof rowHeroSmsCurrentCode !== 'undefined' ? rowHeroSmsCurrentCode : null,
-    typeof rowFreeReusablePhone !== 'undefined' ? rowFreeReusablePhone : null,
-    typeof rowHeroSmsPreferredActivation !== 'undefined' ? rowHeroSmsPreferredActivation : null,
   ].forEach((row) => {
     if (row) {
       row.style.display = runtimeVisible ? '' : 'none';
     }
   });
+  if (typeof rowFreeReusablePhone !== 'undefined' && rowFreeReusablePhone) {
+    rowFreeReusablePhone.style.display = freeReusablePhoneVisible ? '' : 'none';
+  }
+  if (typeof rowHeroSmsPreferredActivation !== 'undefined' && rowHeroSmsPreferredActivation) {
+    rowHeroSmsPreferredActivation.style.display = reuseRuntimeVisible ? '' : 'none';
+  }
   if (typeof syncSignupPhoneInputFromState === 'function') {
     syncSignupPhoneInputFromState(latestState);
   }
@@ -18072,7 +18157,11 @@ btnSaveFreeReusablePhone?.addEventListener('click', async () => {
   }
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'SET_FREE_REUSABLE_PHONE', payload: { phoneNumber },
+      type: 'SET_FREE_REUSABLE_PHONE',
+      payload: {
+        phoneNumber,
+        provider: getSelectedPhoneSmsProvider(),
+      },
     });
     if (response?.error) {
       throw new Error(response.error);
