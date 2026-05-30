@@ -869,6 +869,55 @@ test('GPC billing treats Plus trial-ineligible token guidance log as terminal ev
   assert.equal(events.completed.length, 0);
 });
 
+test('GPC billing treats task execution error log as recoverable page-ended failure', async () => {
+  const { events, executor, pageHarness } = createGpcPageExecutorHarness([
+    { startButtonText: '开始 Plus 充值', logText: 'SYSTEM 页面已就绪' },
+    { startButtonText: '任务进行中', logText: '处理中' },
+    {
+      startButtonText: '开始 Plus 充值',
+      logText: '[03:25:39] SUCCESS [01/10] 检测运行环境 [03:25:49] SUCCESS [02/10] Checkout 订单创建成功 [03:25:54] SUCCESS [02/10] 解析 Midtrans Token [03:25:57] WARN [02/10] 执行错误 [03:25:57] ERROR 任务失败：执行错误',
+      noTrial: false,
+    },
+  ]);
+
+  await assert.rejects(
+    () => executor.executePlusCheckoutBilling({
+      plusPaymentMethod: 'gpc-helper',
+      plusCheckoutSource: 'gpc-helper',
+      plusCheckoutTabId: 77,
+    }),
+    /GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面任务执行错误，准备重新回到步骤 6 创建新 Checkout。.*最近日志：\[03:25:57\] ERROR 任务失败：执行错误/
+  );
+
+  assert.equal(pageHarness.clicks.length, 1);
+  assert.equal(events.logs.some((entry) => /准备再次启动/.test(entry.message)), false);
+  assert.equal(events.completed.length, 0);
+});
+
+test('GPC billing does not treat generic execution error log as recoverable Midtrans restart signal', async () => {
+  const { events, executor, pageHarness } = createGpcPageExecutorHarness([
+    { startButtonText: '开始 Plus 充值', logText: 'SYSTEM 页面已就绪' },
+    { startButtonText: '任务进行中', logText: '处理中' },
+    {
+      startButtonText: '开始 Plus 充值',
+      logText: '[03:25:57] WARN [02/10] 执行错误 [03:25:57] ERROR 任务失败：执行错误',
+      noTrial: false,
+    },
+    { startButtonText: '任务进行中', logText: '第二次处理中' },
+    { startButtonText: '开始 Plus 充值', logText: '订阅完成', hasSubscriptionDone: true },
+  ]);
+
+  await executor.executePlusCheckoutBilling({
+    plusPaymentMethod: 'gpc-helper',
+    plusCheckoutSource: 'gpc-helper',
+    plusCheckoutTabId: 77,
+  });
+
+  assert.equal(pageHarness.clicks.length, 2);
+  assert.equal(events.logs.some((entry) => /准备再次启动/.test(entry.message)), true);
+  assert.equal(events.completed.length, 1);
+});
+
 test('GPC billing times out when page never finishes', async () => {
   const { executor, pageHarness } = createGpcPageExecutorHarness([
     { startButtonText: '任务进行中', logText: '处理中' },

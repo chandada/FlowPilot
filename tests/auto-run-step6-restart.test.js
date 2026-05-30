@@ -864,6 +864,36 @@ test('auto-run treats GPC account binding as recoverable step 6 restart', async 
   assert.deepStrictEqual(events.invalidations.map((entry) => entry.step), [5]);
 });
 
+test('auto-run restarts GPC checkout from step 6 when page reports task execution error', async () => {
+  const plusGpcSteps = {
+    6: { key: 'plus-checkout-create' },
+    7: { key: 'plus-checkout-billing' },
+    10: { key: 'oauth-login' },
+    11: { key: 'fetch-login-code' },
+    12: { key: 'confirm-oauth' },
+    13: { key: 'platform-verify' },
+  };
+  const harness = createHarness({
+    startStep: 6,
+    failureStep: 7,
+    failureBudget: 1,
+    failureMessage: 'GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面任务执行错误，准备重新回到步骤 6 创建新 Checkout。最近日志：[03:25:57] ERROR 任务失败：执行错误',
+    stepDefinitions: plusGpcSteps,
+    finalOAuthChainStartStep: 10,
+    customState: {
+      stepStatuses: { 3: 'completed' },
+      plusPaymentMethod: 'gpc-helper',
+      plusCheckoutSource: 'gpc-helper',
+    },
+  });
+
+  const events = await harness.run();
+
+  assert.deepStrictEqual(events.steps, [6, 7, 6, 7, 10, 11, 12, 13]);
+  assert.deepStrictEqual(events.invalidations.map((entry) => entry.step), [5]);
+  assert.ok(events.logs.some(({ message }) => /回到节点 plus-checkout-create 重新准备 GPC 页面/.test(message)));
+});
+
 test('auto-run restarts GPC checkout from step 6 when ChatGPT session cannot be read', async () => {
   const plusGpcSteps = {
     6: { key: 'plus-checkout-create' },

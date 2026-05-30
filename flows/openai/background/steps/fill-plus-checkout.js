@@ -294,6 +294,19 @@
       return /(?:该|此|当前)?账[户号].{0,16}(?:没有|无|不具备).{0,12}(?:Plus\s*)?试用资格|(?:没有|无|不具备).{0,12}(?:Plus\s*)?试用资格|更换有试用资格的账号\s*Token/.test(text);
     }
 
+    function hasGpcRecoverableExecutionFailure(pageState = {}) {
+      const text = normalizeText([
+        pageState.lastLogLine,
+        pageState.logText,
+        pageState.bodyText,
+      ].filter(Boolean).join(' '));
+      const hasExecutionError = /任务失败：执行错误|ERROR\s*任务失败：执行错误|WARN\s*\[\d+\/\d+\]\s*执行错误/.test(text);
+      if (!hasExecutionError) {
+        return false;
+      }
+      return /Checkout\s*订单创建成功|解析\s*Midtrans\s*Token|Midtrans\s*Token/i.test(text);
+    }
+
     async function ensureGpcCardMode(tabId) {
       if (!chrome?.scripting?.executeScript) {
         throw new Error('步骤 7：当前运行环境不支持脚本注入，无法切换 GPC 卡密充值模式。');
@@ -497,6 +510,11 @@
         if (pageState.noTrial) {
           await flushPendingStatusLog();
           throw new Error(`PLUS_CHECKOUT_NON_FREE_TRIAL::步骤 7：该账户没有试用资格，当前轮 GPC 充值失败。${formatGpcLastLogSuffix(pageState)}`);
+        }
+
+        if (hasGpcRecoverableExecutionFailure(pageState)) {
+          await flushPendingStatusLog();
+          throw new Error(`GPC_PAGE_FLOW_ENDED::步骤 7：GPC 页面任务执行错误，准备重新回到步骤 6 创建新 Checkout。${formatGpcLastLogSuffix(pageState)}`);
         }
 
         if (pageState.hasSubscriptionDone && /开始\s*Plus\s*充值/.test(buttonText)) {
