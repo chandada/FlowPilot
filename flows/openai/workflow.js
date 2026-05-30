@@ -3033,6 +3033,18 @@
     'post-login-phone-verification',
     'post-bound-email-phone-verification',
   ]);
+  const OPENAI_WEBCHAT_OMITTED_STEP_KEYS = Object.freeze([
+    'oauth-login',
+    'fetch-login-code',
+    'bind-email',
+    'fetch-bind-email-code',
+    'relogin-bound-email',
+    'fetch-bound-email-login-code',
+    'post-login-phone-verification',
+    'post-bound-email-phone-verification',
+    'confirm-oauth',
+    'platform-verify',
+  ]);
 
   function omitPlusPaymentChainSteps(steps = []) {
     return steps.filter((step) => !PLUS_PAYMENT_CHAIN_STEP_KEYS.includes(String(step?.key || '').trim()));
@@ -3040,6 +3052,10 @@
 
   function omitPostLoginPhoneVerificationSteps(steps = []) {
     return steps.filter((step) => !POST_LOGIN_PHONE_VERIFICATION_STEP_KEYS.includes(String(step?.key || '').trim()));
+  }
+
+  function omitOpenAiWebchatPublicationSteps(steps = []) {
+    return steps.filter((step) => !OPENAI_WEBCHAT_OMITTED_STEP_KEYS.includes(String(step?.key || '').trim()));
   }
 
   function reindexModeStepDefinitions(steps = []) {
@@ -3151,6 +3167,10 @@
     return false;
   }
 
+  function isOpenAiWebchatTarget(options = {}) {
+    return String(options?.targetId || '').trim().toLowerCase() === OPENAI_WEBCHAT_TARGET_ID;
+  }
+
   function normalizePlusAccountAccessStrategy(value = '') {
     const normalized = String(value || '').trim().toLowerCase();
     if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
@@ -3243,6 +3263,9 @@
     }
     if (!isPhoneVerificationEnabled(options)) {
       steps = omitPostLoginPhoneVerificationSteps(steps);
+    }
+    if (isOpenAiWebchatTarget(options)) {
+      steps = omitOpenAiWebchatPublicationSteps(steps);
     }
     if (isOpenAiWebchatUploadEnabled(options) && !steps.some((step) => step.key === OPENAI_WEBCHAT_UPLOAD_STEP_KEY)) {
       steps = [

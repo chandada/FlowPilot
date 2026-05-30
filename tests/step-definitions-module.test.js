@@ -480,11 +480,31 @@ test('OpenAI webchat upload is appended only for webchat target', () => {
 
   const webchatSteps = api.getSteps({ targetId: 'webchat' });
   const webchatNodes = api.getNodes({ targetId: 'webchat' });
+  const webchatKeys = webchatSteps.map((step) => step.key);
+  assert.deepStrictEqual(webchatKeys, [
+    'open-chatgpt',
+    'submit-signup-email',
+    'fill-password',
+    'fetch-signup-code',
+    'fill-profile',
+    'wait-registration-success',
+    'openai-upload-session-to-webchat',
+  ]);
   assert.equal(webchatSteps.at(-1)?.key, 'openai-upload-session-to-webchat');
   assert.equal(webchatSteps.at(-1)?.sourceId, 'openai-webchat');
   assert.equal(webchatSteps.at(-1)?.driverId, 'flows/openai/background/publisher-webchat');
+  [
+    'oauth-login',
+    'fetch-login-code',
+    'post-login-phone-verification',
+    'confirm-oauth',
+    'platform-verify',
+  ].forEach((key) => {
+    assert.equal(webchatKeys.includes(key), false);
+    assert.equal(webchatNodes.some((node) => node.nodeId === key), false);
+  });
   assert.deepStrictEqual(
-    webchatNodes.find((node) => node.nodeId === 'platform-verify')?.next,
+    webchatNodes.find((node) => node.nodeId === 'wait-registration-success')?.next,
     ['openai-upload-session-to-webchat']
   );
   assert.deepStrictEqual(webchatNodes.at(-1)?.next, []);
