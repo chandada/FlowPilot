@@ -29,6 +29,23 @@ test('i18n resolves auto from browser language and falls back safely', () => {
   assert.equal(loadI18n({ language: 'fr-FR' }).resolveLocale('auto'), 'zh-CN');
 });
 
+test('i18n resolves auto from chrome UI language before navigator language', () => {
+  const scope = {
+    chrome: {
+      i18n: {
+        getUILanguage: () => 'en-GB',
+      },
+    },
+    navigator: {
+      language: 'zh-CN',
+      languages: ['zh-CN'],
+    },
+  };
+  new Function('self', `${catalogSource}; ${runtimeSource};`)(scope);
+
+  assert.equal(scope.FlowPilotI18n.resolveLocale('auto', scope), 'en-US');
+});
+
 test('i18n translates catalog entries with fallback and interpolation', () => {
   const i18n = loadI18n({ language: 'en-US' });
 

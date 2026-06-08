@@ -30,8 +30,12 @@
   }
 
   function getBrowserLocale(rootLike = rootScope) {
-    const language = rootLike?.navigator?.language
+    const chromeUiLanguage = typeof rootLike?.chrome?.i18n?.getUILanguage === 'function'
+      ? rootLike.chrome.i18n.getUILanguage()
+      : '';
+    const language = chromeUiLanguage
       || (Array.isArray(rootLike?.navigator?.languages) ? rootLike.navigator.languages[0] : '')
+      || rootLike?.navigator?.language
       || '';
     return normalizeLocale(language, DEFAULT_LOCALE);
   }
