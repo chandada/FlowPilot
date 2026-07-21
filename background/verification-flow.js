@@ -25,6 +25,7 @@
       isMail2925LimitReachedError,
       isStopError,
       LUCKMAIL_PROVIDER,
+      TEMPORAM_PROVIDER = 'temporam',
       YYDS_MAIL_PROVIDER = 'yyds-mail',
       MAIL_2925_VERIFICATION_INTERVAL_MS,
       MAIL_2925_VERIFICATION_MAX_ATTEMPTS,
@@ -33,6 +34,7 @@
       pollCustomMailVerificationCode,
       pollHotmailVerificationCode,
       pollLuckmailVerificationCode,
+      pollTemporamVerificationCode,
       pollYydsMailVerificationCode,
       sendToContentScript,
       sendToContentScriptResilient,
@@ -1101,6 +1103,13 @@
           ...cleanPollOverrides,
         }, cleanPollOverrides, `轮询${getVerificationCodeLabel(step)}验证码邮箱`);
         return pollYydsMailVerificationCode(step, state, timedPoll.payload);
+      }
+      if (mail.provider === TEMPORAM_PROVIDER) {
+        const timedPoll = await applyMailPollingTimeBudget(step, {
+          ...getVerificationPollPayload(step, state),
+          ...cleanPollOverrides,
+        }, cleanPollOverrides, `轮询${getVerificationCodeLabel(step)}验证码邮箱`);
+        return pollTemporamVerificationCode(step, state, timedPoll.payload);
       }
 
       if (Number(pollOverrides.resendIntervalMs) > 0) {

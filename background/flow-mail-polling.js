@@ -85,11 +85,13 @@
       pollCustomMailVerificationCode = null,
       pollHotmailVerificationCode = null,
       pollLuckmailVerificationCode = null,
+      pollTemporamVerificationCode = null,
       pollYydsMailVerificationCode = null,
       reuseOrCreateTab = async () => null,
       sendToMailContentScriptResilient = null,
       shouldUseCustomMailHelper = null,
       throwIfStopped = () => {},
+      TEMPORAM_PROVIDER = 'temporam',
       YYDS_MAIL_PROVIDER = 'yyds-mail',
     } = deps;
 
@@ -117,6 +119,10 @@
       [normalizeProviderId(YYDS_MAIL_PROVIDER), {
         label: 'YYDS Mail',
         poll: pollYydsMailVerificationCode,
+      }],
+      [normalizeProviderId(TEMPORAM_PROVIDER), {
+        label: 'Temporam',
+        poll: pollTemporamVerificationCode,
       }],
     ]);
 

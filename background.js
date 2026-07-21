@@ -94,6 +94,8 @@ importScripts(
   'background/cloudmail-provider.js',
   'yyds-mail-utils.js',
   'background/yyds-mail-provider.js',
+  'temporam-utils.js',
+  'background/temporam-provider.js',
   'icloud-utils.js',
   'mail-provider-utils.js',
   'content/activation-utils.js'
@@ -373,6 +375,21 @@ const {
   normalizeYydsMailMessages,
 } = self.YydsMailUtils;
 const {
+  DEFAULT_TEMPORAM_BASE_URL,
+  TEMPORAM_PROVIDER,
+  buildTemporamHeaders,
+  joinTemporamUrl,
+  normalizeTemporamAddress,
+  normalizeTemporamApiKey,
+  normalizeTemporamBaseUrl,
+  normalizeTemporamCurrentInbox,
+  normalizeTemporamDomain,
+  normalizeTemporamDomains,
+  normalizeTemporamInbox,
+  normalizeTemporamMessageDetail,
+  normalizeTemporamMessages,
+} = self.TemporamUtils;
+const {
   findIcloudAliasByEmail,
   getConfiguredIcloudHostPreference,
   getIcloudHostHintFromMessage,
@@ -547,6 +564,7 @@ const CLOUDFLARE_TEMP_EMAIL_GENERATOR = 'cloudflare-temp-email';
 const CLOUD_MAIL_PROVIDER = 'cloudmail';
 const CLOUD_MAIL_GENERATOR = 'cloudmail';
 const YYDS_MAIL_GENERATOR = YYDS_MAIL_PROVIDER;
+const TEMPORAM_GENERATOR = TEMPORAM_PROVIDER;
 const CUSTOM_EMAIL_POOL_GENERATOR = 'custom-pool';
 const HOTMAIL_MAILBOXES = ['INBOX', 'Junk'];
 const STOP_ERROR_MESSAGE = '流程已被用户停止。';
@@ -1410,6 +1428,9 @@ const PERSISTED_SETTING_DEFAULTS = {
   cloudMailDomains: [],
   yydsMailApiKey: '',
   yydsMailBaseUrl: DEFAULT_YYDS_MAIL_BASE_URL,
+  temporamApiKey: '',
+  temporamBaseUrl: DEFAULT_TEMPORAM_BASE_URL,
+  temporamDomain: '',
   hotmailAccounts: [],
   mail2925Accounts: [],
   paypalAccounts: [],
@@ -2541,6 +2562,9 @@ function normalizeEmailGenerator(value = '') {
   const yydsMailGenerator = typeof YYDS_MAIL_GENERATOR === 'string'
     ? YYDS_MAIL_GENERATOR
     : 'yyds-mail';
+  const temporamGenerator = typeof TEMPORAM_GENERATOR === 'string'
+    ? TEMPORAM_GENERATOR
+    : 'temporam';
   if (normalized === 'custom' || normalized === 'manual') {
     return 'custom';
   }
@@ -2557,6 +2581,7 @@ function normalizeEmailGenerator(value = '') {
   if (normalized === CLOUDFLARE_TEMP_EMAIL_GENERATOR) return CLOUDFLARE_TEMP_EMAIL_GENERATOR;
   if (normalized === 'cloudmail') return 'cloudmail';
   if (normalized === yydsMailGenerator) return yydsMailGenerator;
+  if (normalized === temporamGenerator) return temporamGenerator;
   return 'duck';
 }
 
@@ -2740,6 +2765,15 @@ async function markCurrentRegistrationAccountUsed(state = {}, options = {}) {
     }
   }
 
+  if (typeof isTemporamProvider === 'function' && isTemporamProvider(latestState)) {
+    const currentInbox = normalizeTemporamCurrentInbox(latestState.currentTemporamInbox);
+    if (currentInbox?.address) {
+      await clearTemporamRuntimeState({ clearEmail: true });
+      await addLog(`${reasonPrefix}：Temporam 邮箱 ${currentInbox.address} 运行态已清空。`, options.level || 'warn');
+      updated = true;
+    }
+  }
+
   if (String(latestState.mailProvider || '').trim().toLowerCase() === '2925' && latestState.currentMail2925AccountId) {
     await patchMail2925Account(latestState.currentMail2925AccountId, {
       lastUsedAt: Date.now(),
@@ -2795,6 +2829,9 @@ function normalizeMailProvider(value = '') {
   const yydsMailProvider = typeof YYDS_MAIL_PROVIDER === 'string'
     ? YYDS_MAIL_PROVIDER
     : 'yyds-mail';
+  const temporamProvider = typeof TEMPORAM_PROVIDER === 'string'
+    ? TEMPORAM_PROVIDER
+    : 'temporam';
   switch (normalized) {
     case 'custom':
     case ICLOUD_PROVIDER:
@@ -2804,6 +2841,7 @@ function normalizeMailProvider(value = '') {
     case CLOUDFLARE_TEMP_EMAIL_PROVIDER:
     case CLOUD_MAIL_PROVIDER:
     case yydsMailProvider:
+    case temporamProvider:
     case '163':
     case '163-vip':
     case '126':
@@ -3122,6 +3160,34 @@ const {
   fetchYydsMailAddress,
   pollYydsMailVerificationCode,
 } = yydsMailProvider;
+const temporamProvider = self.MultiPageBackgroundTemporamProvider.createTemporamProvider({
+  addLog,
+  buildTemporamHeaders,
+  DEFAULT_TEMPORAM_BASE_URL,
+  getState,
+  joinTemporamUrl,
+  normalizeTemporamAddress,
+  normalizeTemporamApiKey,
+  normalizeTemporamBaseUrl,
+  normalizeTemporamCurrentInbox,
+  normalizeTemporamDomain,
+  normalizeTemporamDomains,
+  normalizeTemporamInbox,
+  normalizeTemporamMessageDetail,
+  normalizeTemporamMessages,
+  persistRegistrationEmailState,
+  pickVerificationMessageWithTimeFallback,
+  setEmailState,
+  setState,
+  sleepWithStop,
+  throwIfStopped,
+  TEMPORAM_PROVIDER,
+});
+const {
+  clearTemporamRuntimeState,
+  fetchTemporamAddress,
+  pollTemporamVerificationCode,
+} = temporamProvider;
 
 function normalizeSub2ApiGroupNames(value = '') {
   const source = Array.isArray(value)
@@ -3549,6 +3615,12 @@ function normalizePersistentSettingValue(key, value) {
       return normalizeYydsMailApiKey(value);
     case 'yydsMailBaseUrl':
       return normalizeYydsMailBaseUrl(value);
+    case 'temporamApiKey':
+      return normalizeTemporamApiKey(value);
+    case 'temporamBaseUrl':
+      return normalizeTemporamBaseUrl(value);
+    case 'temporamDomain':
+      return normalizeTemporamDomain(value);
     case 'hotmailAccounts':
       return normalizeHotmailAccounts(value);
     case 'mail2925Accounts':
@@ -5084,6 +5156,9 @@ async function resetState() {
       'luckmailPreserveTagName',
       'yydsMailApiKey',
       'yydsMailBaseUrl',
+      'temporamApiKey',
+      'temporamBaseUrl',
+      'temporamDomain',
       'preferredIcloudHost',
       'automationWindowId',
       ...CONTRIBUTION_RUNTIME_KEYS,
@@ -5155,6 +5230,10 @@ async function resetState() {
     yydsMailApiKey: normalizeYydsMailApiKey(prev.yydsMailApiKey ?? persistedSettings.yydsMailApiKey),
     yydsMailBaseUrl: normalizeYydsMailBaseUrl(prev.yydsMailBaseUrl ?? persistedSettings.yydsMailBaseUrl),
     currentYydsMailInbox: null,
+    temporamApiKey: normalizeTemporamApiKey(prev.temporamApiKey ?? persistedSettings.temporamApiKey),
+    temporamBaseUrl: normalizeTemporamBaseUrl(prev.temporamBaseUrl ?? persistedSettings.temporamBaseUrl),
+    temporamDomain: normalizeTemporamDomain(prev.temporamDomain ?? persistedSettings.temporamDomain),
+    currentTemporamInbox: null,
     ...clearStep5ProfileStatePatch(),
     // Keep reusable phone activation across round resets so the same number can be reactivated up to maxUses.
     reusablePhoneActivation,
@@ -5302,6 +5381,16 @@ function isYydsMailProvider(stateOrProvider) {
     ? YYDS_MAIL_PROVIDER
     : 'yyds-mail';
   return provider === yydsMailProvider;
+}
+
+function isTemporamProvider(stateOrProvider) {
+  const provider = typeof stateOrProvider === 'string'
+    ? stateOrProvider
+    : stateOrProvider?.mailProvider;
+  const temporamProvider = typeof TEMPORAM_PROVIDER === 'string'
+    ? TEMPORAM_PROVIDER
+    : 'temporam';
+  return provider === temporamProvider;
 }
 
 function isCustomMailProvider(stateOrProvider) {
@@ -12083,6 +12172,9 @@ function getEmailGeneratorLabel(generator) {
   const yydsMailGenerator = typeof YYDS_MAIL_GENERATOR === 'string'
     ? YYDS_MAIL_GENERATOR
     : 'yyds-mail';
+  const temporamGenerator = typeof TEMPORAM_GENERATOR === 'string'
+    ? TEMPORAM_GENERATOR
+    : 'temporam';
   if (generator === 'custom') {
     return '自定义邮箱';
   }
@@ -12099,6 +12191,7 @@ function getEmailGeneratorLabel(generator) {
   if (generator === CLOUDFLARE_TEMP_EMAIL_GENERATOR) return 'Cloudflare Temp Email';
   if (generator === CLOUD_MAIL_GENERATOR) return 'Cloud Mail';
   if (generator === yydsMailGenerator) return 'YYDS Mail';
+  if (generator === temporamGenerator) return 'Temporam 临时邮箱';
   return 'Duck 邮箱';
 }
 const mail2925SessionManager = self.MultiPageBackgroundMail2925Session?.createMail2925SessionManager({
@@ -12282,13 +12375,25 @@ async function fetchGeneratedEmail(state, options = {}) {
   const yydsMailGenerator = typeof YYDS_MAIL_GENERATOR === 'string'
     ? YYDS_MAIL_GENERATOR
     : 'yyds-mail';
+  const temporamProvider = typeof TEMPORAM_PROVIDER === 'string'
+    ? TEMPORAM_PROVIDER
+    : 'temporam';
+  const temporamGenerator = typeof TEMPORAM_GENERATOR === 'string'
+    ? TEMPORAM_GENERATOR
+    : 'temporam';
   const requestedMailProvider = normalizeMailProvider(options.mailProvider ?? currentState.mailProvider);
   if (requestedMailProvider === yydsMailProvider) {
     return fetchYydsMailAddress(currentState, options);
   }
+  if (requestedMailProvider === temporamProvider) {
+    return fetchTemporamAddress(currentState, options);
+  }
   const generator = normalizeEmailGenerator(options.generator ?? currentState.emailGenerator);
   if (generator === yydsMailGenerator) {
     return fetchYydsMailAddress(currentState, options);
+  }
+  if (generator === temporamGenerator) {
+    return fetchTemporamAddress(currentState, options);
   }
   if (generator === CLOUD_MAIL_GENERATOR) {
     return fetchCloudMailAddress(currentState, options);
@@ -12843,6 +12948,12 @@ async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
   if (isYydsMailProvider(currentState)) {
     const email = await fetchYydsMailAddress(currentState, { generateNew: true });
     await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：YYDS Mail 邮箱已就绪：${email}（第 ${attemptRuns} 次尝试）===`, 'ok');
+    return email;
+  }
+
+  if (isTemporamProvider(currentState)) {
+    const email = await fetchTemporamAddress(currentState, { generateNew: true });
+    await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：Temporam 邮箱已就绪：${email}（第 ${attemptRuns} 次尝试）===`, 'ok');
     return email;
   }
 

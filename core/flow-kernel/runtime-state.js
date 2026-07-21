@@ -74,6 +74,7 @@
         'currentLuckmailPurchase',
         'currentLuckmailMailCursor',
         'currentYydsMailInbox',
+        'currentTemporamInbox',
       ]),
       identity: Object.freeze([
         'resolvedSignupMethod',

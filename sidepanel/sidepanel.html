@@ -470,6 +470,7 @@
             <option value="gmail">Gmail 邮箱 (mail.google.com)</option>
             <option value="cloudflare-temp-email">Cloudflare Temp Email（推荐）</option>
             <option value="cloudmail">Cloud Mail</option>
+            <option value="temporam">Temporam 临时邮箱（API）</option>
           </select>
           <button id="btn-mail-login" class="btn btn-outline btn-sm data-inline-btn" type="button" disabled>登录</button>
         </div>
@@ -839,6 +840,29 @@
         <span class="data-label">Base URL</span>
         <input type="text" id="input-yyds-mail-base-url" class="data-input mono"
           placeholder="https://maliapi.215.im/v1" />
+      </div>
+    </div>
+    <div id="temporam-section" class="data-card hotmail-card" style="display:none;">
+      <div class="section-mini-header">
+        <div class="section-mini-copy">
+          <span class="section-label">Temporam 临时邮箱</span>
+          <span class="data-value">通过 Temporam API 自动生成临时邮箱并接收验证码</span>
+        </div>
+      </div>
+      <div class="data-row">
+        <span class="data-label">API Key</span>
+        <div class="input-with-icon">
+          <input type="password" id="input-temporam-api-key" class="data-input data-input-with-icon mono"
+            placeholder="请输入 Temporam API Key" />
+          <button id="btn-toggle-temporam-api-key" class="input-icon-btn" type="button"
+            data-password-toggle="input-temporam-api-key" data-show-label="显示 Temporam API Key"
+            data-hide-label="隐藏 Temporam API Key" aria-label="显示 Temporam API Key" title="显示 Temporam API Key"></button>
+        </div>
+      </div>
+      <div class="data-row">
+        <span class="data-label">Base URL</span>
+        <input type="text" id="input-temporam-base-url" class="data-input mono"
+          placeholder="https://api.temporam.com/v1" />
       </div>
     </div>
     <div id="hotmail-section" class="data-card hotmail-card" style="display:none;">

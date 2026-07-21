@@ -22,6 +22,7 @@
         step5ProfilePayload: null,
         step5ProfileRecoveryCount: 0,
       }),
+      clearTemporamRuntimeState,
       clearYydsMailRuntimeState,
       clearStopRequest,
       closeLocalhostCallbackTabs,
@@ -133,6 +134,7 @@
       isHotmailProvider,
       isLocalhostOAuthCallbackUrl,
       isLuckmailProvider,
+      isTemporamProvider = () => false,
       isYydsMailProvider = () => false,
       isStopError,
       isTabAlive,
@@ -811,6 +813,14 @@
       ) {
         await clearYydsMailRuntimeState({ clearEmail: true });
         await addLog('当前 YYDS Mail 邮箱运行态已清空，下轮将重新创建邮箱。', 'ok');
+      }
+      if (
+        typeof markCurrentRegistrationAccountUsed !== 'function'
+        && isTemporamProvider(latestState)
+        && typeof clearTemporamRuntimeState === 'function'
+      ) {
+        await clearTemporamRuntimeState({ clearEmail: true });
+        await addLog('当前 Temporam 邮箱运行态已清空，下轮将重新生成邮箱。', 'ok');
       }
       const localhostPrefix = buildLocalhostCleanupPrefix(payload.localhostUrl);
       if (localhostPrefix) {

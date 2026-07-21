@@ -323,6 +323,10 @@ const inputYydsMailBaseUrl = document.getElementById('input-yyds-mail-base-url')
 const hotmailSection = document.getElementById('hotmail-section');
 const mail2925Section = document.getElementById('mail2925-section');
 const luckmailSection = document.getElementById('luckmail-section');
+const inputTemporamApiKey = document.getElementById('input-temporam-api-key');
+const inputTemporamBaseUrl = document.getElementById('input-temporam-base-url');
+const btnToggleTemporamApiKey = document.getElementById('btn-toggle-temporam-api-key');
+const temporamSection = document.getElementById('temporam-section');
 const icloudSection = document.getElementById('icloud-section');
 const icloudSummary = document.getElementById('icloud-summary');
 const icloudList = document.getElementById('icloud-list');
@@ -1377,6 +1381,7 @@ const CUSTOM_EMAIL_POOL_GENERATOR = 'custom-pool';
 const DEFAULT_LUCKMAIL_BASE_URL = 'https://mails.luckyous.com';
 const DEFAULT_LUCKMAIL_EMAIL_TYPE = 'ms_graph';
 const DEFAULT_YYDS_MAIL_BASE_URL = window.YydsMailUtils?.DEFAULT_YYDS_MAIL_BASE_URL || 'https://maliapi.215.im/v1';
+const DEFAULT_TEMPORAM_BASE_URL = window.TemporamUtils?.DEFAULT_TEMPORAM_BASE_URL || 'https://api.temporam.com/v1';
 const DISPLAY_TIMEZONE = 'Asia/Shanghai';
 const DEFAULT_ACCOUNT_RUN_HISTORY_HELPER_BASE_URL = 'http://127.0.0.1:17373';
 const CONTRIBUTION_UPLOAD_URL = 'https://flowpilot.qlhazycoder.top/';
@@ -4400,6 +4405,18 @@ function applyYydsMailSettingsState(state = {}) {
   }
 }
 
+function applyTemporamSettingsState(state = {}) {
+  const normalizeTemporamBaseUrlValue = typeof normalizeTemporamBaseUrl === 'function'
+    ? normalizeTemporamBaseUrl
+    : ((value) => String(value || '').trim() || DEFAULT_TEMPORAM_BASE_URL);
+  if (inputTemporamApiKey) {
+    inputTemporamApiKey.value = state?.temporamApiKey || '';
+  }
+  if (inputTemporamBaseUrl) {
+    inputTemporamBaseUrl.value = normalizeTemporamBaseUrlValue(state?.temporamBaseUrl);
+  }
+}
+
 function collectSettingsPayload() {
   const safeUiLanguage = typeof currentUiLanguage !== 'undefined' ? currentUiLanguage : 'auto';
   const defaultGpcBaseUrl = typeof DEFAULT_GPC_BASE_URL !== 'undefined'
@@ -5382,6 +5399,10 @@ function collectSettingsPayload() {
     cloudMailDomain: normalizeCloudMailDomainInput((typeof inputCloudMailDomain !== 'undefined' && inputCloudMailDomain) ? inputCloudMailDomain.value : ''),
     yydsMailApiKey: (typeof inputYydsMailApiKey !== 'undefined' && inputYydsMailApiKey) ? inputYydsMailApiKey.value.trim() : '',
     yydsMailBaseUrl: normalizeYydsBaseUrlValue((typeof inputYydsMailBaseUrl !== 'undefined' && inputYydsMailBaseUrl) ? inputYydsMailBaseUrl.value : ''),
+    temporamApiKey: (typeof inputTemporamApiKey !== 'undefined' && inputTemporamApiKey) ? inputTemporamApiKey.value.trim() : '',
+    temporamBaseUrl: typeof normalizeTemporamBaseUrl === 'function'
+      ? normalizeTemporamBaseUrl((typeof inputTemporamBaseUrl !== 'undefined' && inputTemporamBaseUrl) ? inputTemporamBaseUrl.value : '')
+      : ((value) => String(value || '').trim() || DEFAULT_TEMPORAM_BASE_URL),
     autoRunSkipFailures: inputAutoSkipFailures.checked,
     autoRunFallbackThreadIntervalMinutes: normalizeAutoRunThreadIntervalMinutes(inputAutoSkipFailuresThreadIntervalMinutes.value),
     step6CookieCleanupEnabled: typeof inputStep6CookieCleanupEnabled !== 'undefined' && inputStep6CookieCleanupEnabled
@@ -12324,6 +12345,9 @@ function applySettingsState(state) {
   if (typeof applyYydsMailSettingsState === 'function') {
     applyYydsMailSettingsState(state);
   }
+  if (typeof applyTemporamSettingsState === 'function') {
+    applyTemporamSettingsState(state);
+  }
   renderCloudflareDomainOptions(state?.cloudflareDomain || '');
   setCloudflareDomainEditMode(false, { clearInput: true });
   inputAutoSkipFailures.checked = Boolean(state?.autoRunSkipFailures);
@@ -13842,6 +13866,7 @@ function updateMailProviderUI() {
   const useEmailGenerator = !useHotmail && !useLuckmail && !useYydsMail && !useCustomEmail && (!useGeneratedAlias || useGmail);
   const useCloudflareTempEmailProvider = selectMailProvider.value === 'cloudflare-temp-email';
   const useCloudMailProvider = selectMailProvider.value === 'cloudmail';
+  const useTemporam = selectMailProvider.value === 'temporam';
   const aliasUiCopy = useGeneratedAlias
     ? getManagedAliasProviderUiCopy(selectMailProvider.value, mail2925Mode)
     : null;
@@ -14018,6 +14043,9 @@ function updateMailProviderUI() {
   if (luckmailSection) {
     luckmailSection.style.display = useLuckmail ? '' : 'none';
   }
+  if (temporamSection) {
+    temporamSection.style.display = useTemporam ? '' : 'none';
+  }
   labelEmailPrefix.textContent = '邮箱前缀';
   inputEmailPrefix.placeholder = '例如 abc';
   if (labelMail2925UseAccountPool) {
@@ -14047,7 +14075,7 @@ function updateMailProviderUI() {
     rowHotmailLocalBaseUrl.style.display = useHotmail && hotmailServiceMode === HOTMAIL_SERVICE_MODE_LOCAL ? '' : 'none';
   }
   btnFetchEmail.hidden = useHotmail || useLuckmail || useCustomEmail || useCustomEmailPool;
-  inputEmail.readOnly = useHotmail || useLuckmail;
+  inputEmail.readOnly = useHotmail || useLuckmail || useTemporam;
   inputEmail.placeholder = useHotmail
     ? '由 Hotmail 账号池自动分配'
     : (useLuckmail
@@ -14062,7 +14090,7 @@ function updateMailProviderUI() {
   if (useCustomEmail && useCustomMailProviderPool) {
     inputEmail.placeholder = '号池会按顺序自动回填当前轮邮箱，也可以手动覆盖';
   }
-  btnFetchEmail.disabled = useLuckmail || useCustomEmail || useCustomEmailPool || fixedSubdomainConfigInvalid || isAutoRunLockedPhase();
+  btnFetchEmail.disabled = useLuckmail || useTemporam || useCustomEmail || useCustomEmailPool || fixedSubdomainConfigInvalid || isAutoRunLockedPhase();
   if (!btnFetchEmail.disabled) {
     btnFetchEmail.textContent = uiCopy.buttonLabel;
   }
@@ -14085,6 +14113,9 @@ function updateMailProviderUI() {
   }
   if (autoHintText && useGmail && useGeneratedAlias) {
     autoHintText.textContent = '请先填写 Gmail 原邮箱，步骤 3 会自动生成 Gmail +tag 地址';
+  }
+  if (autoHintText && useTemporam) {
+    autoHintText.textContent = '步骤 3 会自动通过 Temporam API 获取临时邮箱并用于收码';
   }
   if (autoHintText && useGeneratedAlias && aliasUiCopy?.hint) {
     autoHintText.textContent = aliasUiCopy.hint;
